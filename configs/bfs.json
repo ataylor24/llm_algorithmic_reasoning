@@ -1,0 +1,7 @@
+{
+    "model": "llama",
+    "model_path" : "/local2/ataylor2/llama/llama-7B-hf",
+    "global_data_path": "/local2/ataylor2/algorithmic_reasoning/",
+    "algorithm":"bfs/llm_data",
+    "cuda_device": 0 
+}
