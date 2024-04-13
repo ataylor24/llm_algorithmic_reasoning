@@ -3,57 +3,82 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
-from transformers import AutoTokenizer, LEDForConditionalGeneration, LongformerConfig, \
-    LongformerTokenizerFast, LongformerModel, LlamaForCausalLM, LlamaTokenizer, BertTokenizer, BertModel
-
-logger = logging.getLogger(__name__)
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+)
+from peft import prepare_model_for_kbit_training, LoraConfig, get_peft_model
 
 class GenerativeModel(nn.Module):
     def __init__(self, config):
         super().__init__()
-        if config.model == "llama":
-            model = LlamaForCausalLM.from_pretrained(config.llama).to(config.device)
-            
-            tokenizer = LlamaTokenizer.from_pretrained(config.llama)
-    
-            self.model_pipeline = transformers.pipeline(
-                "text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                torch_dtype=torch.float16,
-                device=config.device
+        if config.model == "llama2":
+     
+            if config.use_peft:
+                quant_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    # bnb_4bit_use_double_quant=False,
                 )
+                torch_dtype = torch.bfloat16
+            else:
+                quant_config = None
+                torch_dtype = torch.bfloat16
+                
+            self.model = AutoModelForCausalLM.from_pretrained(
+                config.model_path,
+                quantization_config=quant_config,
+                torch_dtype=torch_dtype,
+                cache_dir=config.cache_dir,
+                #device_map= {"": config.device}
+            )
+            # self.model.config.use_cache = False
+            # self.model.config.pretraining_tp = 1
+            
+            # self.tokenizer = AutoTokenizer.from_pretrained(config.model_path, trust_remote_code=True)
+            # self.tokenizer.padding = True
+            # self.tokenizer.truncation = True
+            # self.tokenizer.padding_side = 'right'
+            # self.tokenizer.pad_token = self.tokenizer.eos_token if self.tokenizer.pad_token is None else self.tokenizer.pad_token
+            # self.tokenizer.add_tokens(["[INST]"])
+            # self.tokenizer.add_special_tokens(dict(eos_token="[/INST]"))
+            # self.model.resize_token_embeddings(len(self.tokenizer))
+            # self.model.config.eos_token_id = self.tokenizer.eos_token_id
+            
+            # self.model.to(config.device)
+            # self.model.config.use_cache = False
+            
         else:
             raise NotImplementedError("Attempting to use a model that hasn't been implemented yet!")
-    def forward(self, batch, predict=False):
+    
+    # collate function - to transform list of dictionaries [ {input_ids: [123, ..]}, {.. ] to single batch dictionary { input_ids: [..], labels: [..], attention_mask: [..] }
+    def collate(self, elements):
+        tokenlist=[e["input_ids"] for e in elements]
+        tokens_maxlen=max([len(t) for t in tokenlist])  # length of longest input
 
-        outputs = self.model(input_ids=batch.enc_idxs, 
-                             attention_mask=batch.enc_attn, 
-                             decoder_input_ids=batch.dec_idxs, 
-                             decoder_attention_mask=batch.dec_attn, 
-                             labels=batch.lbl_idxs, 
-                             return_dict=True)
-        
-        generative_loss = outputs['loss']
-        
-        if 'ET' in self.config.task_list and 'token_cls' in self.config.tasks['ET']['design']:
-            cls_head_in = outputs['encoder_last_hidden_state']
-            classifier_logits = self.classification_head(cls_head_in)
-            if predict:
-               return classifier_logits
-            # classifier_logits size: [8, 186, 3]
-            # batch.entity_labels size: [8, 186]
-            classification_loss = self.cls_loss_fct(
-                                classifier_logits.view(-1, self.num_labels), 
-                                batch.entity_labels.view(-1))
-            if len(self.config.task_list) == 1:
-                # only perform seq tagging ET
-                loss = classification_loss #* self.cls_loss_weight
-            else:
-                loss = generative_loss + classification_loss #* self.cls_loss_weight
-        else:
-            classification_loss = 0
-            loss = generative_loss
-        # DataParallel cannot handle multiple output
-        # return loss, generative_loss, classification_loss
-        return loss
+        input_ids,labels,attention_masks = [],[],[]
+        for tokens in tokenlist:
+            # how many pad tokens to add for this sample
+            pad_len=tokens_maxlen-len(tokens)
+
+            # pad input_ids with pad_token, labels with ignore_index (-100) and set attention_mask 1 where content, otherwise 0
+            input_ids.append( tokens + [self.tokenizer.pad_token_id]*pad_len )   
+            labels.append( tokens + [-100]*pad_len )    
+            attention_masks.append( [1]*len(tokens) + [0]*pad_len ) 
+
+        batch={
+            "input_ids": torch.tensor(input_ids),
+            "labels": torch.tensor(labels),
+            "attention_mask": torch.tensor(attention_masks)
+        }
+        return batch
+    
+    def tokenize(self, element):
+        return self.tokenizer(
+            element,
+            truncation=True,
+            max_length=2048,
+            add_special_tokens=False,
+        )

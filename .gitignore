@@ -1,3 +1,7 @@
 clrs_*
 __pycache__
 proj_baseline/data_generation/algorithms
+wandb/
+run_scripts/mlruns
+run_scripts/tmp_trainer
+run_scripts/out

@@ -46,12 +46,13 @@ def _translate_source_node(source_list):
 
 def _bfs_translate_output(list_pred):
     list_out_idxs = [str(node_idx) for node_idx, pred_idx in enumerate(list_pred) if pred_idx != node_idx]
-    return f"Reachable Nodes: {', '.join(list_out_idxs)}" if len(list_out_idxs) > 0 else "There are no reachable nodes"
+    return f"### Reachable Nodes: {', '.join(list_out_idxs)}"# if len(list_out_idxs) > 0 else "There are no reachable nodes"
 
 def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h):
     dict_reach_h = {}
     reach_h_queue = []
     visited_ = set()
+
     for level_h, (reach_h, pred_h) in enumerate(zip(list_reach_h, list_pred_h)):            
         level_h_queue = set()
         # termination condition
@@ -130,23 +131,25 @@ def _datapoints_list_to_dict(dp_list):
         dp_dict[dp.name] = _datapoint_to_dict(dp)
     return dp_dict
 
-def _write_data(clrs_data_dir, llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data):
-    def _json_write(data, data_dir, file_prefix):
-        json.dump(data, open(os.path.join(data_dir, file_prefix + ".json"), "w"))
-    
-    def _pickle_compress(data, data_dir, file_prefix):
-        dill.dump(data, open(os.path.join(data_dir, file_prefix + ".pkl"), 'wb'))
+def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data):
     
     #Writing CLRS data
-    _pickle_compress(clrs_training_data, clrs_data_dir, "training")
-    _pickle_compress(clrs_validation_data, clrs_data_dir, "validation")
-    _pickle_compress(clrs_testing_data, clrs_data_dir, "testing")
+    
+    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "training" + ".pkl"), clrs_training_data)
+    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "validation" + ".pkl"), clrs_validation_data)
+    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "testing" + ".pkl"), clrs_testing_data)
     
     #Writing LMM data
-    _json_write(trans_training_data, llm_data_dir, "training")
-    _json_write(trans_validation_data, llm_data_dir, "validation")
-    _json_write(trans_testing_data, llm_data_dir, "testing")
-
+    for output_format in output_formats:
+        llm_data_dir = dict_llm_data_dir[output_format]
+        
+        if output_format == "llama2":
+            data_utils.write_llama_format(llm_data_dir, "training", trans_training_data)
+            data_utils.write_llama_format(llm_data_dir, "validation", trans_validation_data)
+            data_utils.write_llama_format(llm_data_dir, "testing", trans_testing_data) 
+        else:
+            raise NotImplementedError(f"Output format {output_format} has not been implemented.")
+    
 def translate_outputs(alg, outputs):
     outputs_dict = _datapoints_list_to_dict(outputs)
 
@@ -183,14 +186,19 @@ def _translate_inputs(alg, inputs):
 
     if alg in ["bfs", "dfs"]:
         # unweighted graph algorithms
+        algorithm = alg
         list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
         source = _translate_source_node(inputs_dict["s"]["data"])
-        return list_edge, source
+        return algorithm, list_edge, source
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
     else:
         raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
+
+def hash_edgelist(edgelist):
+    canonicalEdges = sorted([str(sorted(edge)) for edge in edgelist])  # Canonical form and sort
+    return hash(",".join(canonicalEdges))  # Convert to unique representation
 
 def sample_data(args):
     clrs_training_data = {}
@@ -201,48 +209,78 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    clrs_data_dir, llm_data_dir = data_utils.resolve_output_dirs(args.output_dir, args.algorithm)
+    graph_sizes = range(3, args.graph_sizes + 1)
     
-    train_smp, spec = smp.build_sampler(args.algorithm, num_samples=args.num_samples, length=args.graph_size, seed=args.seed)
-    test_smp, spec = smp.build_sampler(args.algorithm, num_samples=args.num_samples, length=args.graph_size, seed=args.seed)
+    for graph_size in graph_sizes:
+        unique_graphs = set()
+        clrs_data_dir, dict_llm_data_dir = data_utils.resolve_output_dirs(args.output_dir, args.algorithm, args.output_formats, graph_size)
 
-    train_iter = _iterate_sampler(train_smp, batch_size=1)
-    test_iter = _iterate_sampler(test_smp, batch_size=1)
+        training_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][0] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[0]
+        evaluation_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][1] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[1]
+        
+        data_smp, spec = smp.build_sampler(args.algorithm, num_samples=-1, length=graph_size, seed=args.seed)
+        # test_smp, spec = smp.build_sampler(args.algorithm, num_samples=evaluation_instances, length=graph_size, seed=args.seed)
     
-    for i in range(args.train_test_split[0]):
-        train_sample = next(train_iter)
-        inputs = _translate_inputs(args.algorithm, train_sample.features.inputs)
-        hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints)
-        outputs = translate_outputs(args.algorithm, train_sample.outputs)
+        data_smp_iter = _iterate_sampler(data_smp, batch_size=1)
+        # test_iter = _iterate_sampler(test_smp, batch_size=1)
+        
+        valid_train_idx = 0
+        valid_eval_idx = 0
+        
+        while valid_train_idx < training_instances:
+            train_sample = next(data_smp_iter)
 
-        clrs_training_data[i] = train_sample
-        trans_training_data[i] = {
-            "inputs": inputs,
-            "hints": "\n".join(hints),
-            "outputs": outputs
-        }
-    
-    for i in range(args.train_test_split[1]):
-        test_sample = next(test_iter)
-        inputs = _translate_inputs(args.algorithm, test_sample.features.inputs)
-        hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), test_sample.features.hints)
-        outputs = translate_outputs(args.algorithm, test_sample.outputs)
-        if i < args.train_test_split[1] // 2:
-            clrs_validation_data[i] = test_sample
-            trans_validation_data[i] = {
+            inputs = _translate_inputs(args.algorithm, train_sample.features.inputs)
+            
+            edgelist_hash = hash_edgelist(inputs[1])
+            if edgelist_hash in unique_graphs:
+                continue
+            
+            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints)
+            outputs = translate_outputs(args.algorithm, train_sample.outputs)
+
+            clrs_training_data[valid_train_idx] = train_sample
+            trans_training_data[valid_train_idx] = {
                 "inputs": inputs,
                 "hints": "\n".join(hints),
                 "outputs": outputs
             }
-        else:
-            clrs_testing_data[i] = test_sample
-            trans_testing_data[i] = {
-                "inputs": inputs,
-                "hints": "\n".join(hints),
-                "outputs": outputs
-            }
-    
-    _write_data(clrs_data_dir, llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data)
+            
+            unique_graphs.add(edgelist_hash)
+            valid_train_idx += 1
+            
+        while valid_eval_idx < evaluation_instances:
+            test_sample = next(data_smp_iter)
+            inputs = _translate_inputs(args.algorithm, test_sample.features.inputs)
+            
+            edgelist_hash = hash_edgelist(inputs[1])
+            if edgelist_hash in unique_graphs:
+                continue
+            
+            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), test_sample.features.hints)
+            outputs = translate_outputs(args.algorithm, test_sample.outputs)
+
+            if valid_eval_idx < evaluation_instances // 2:
+                clrs_validation_data[valid_eval_idx] = test_sample
+                trans_validation_data[valid_eval_idx] = {
+                    "inputs": inputs,
+                    "hints": "\n".join(hints),
+                    "outputs": outputs
+                }
+            else:
+                test_idx = valid_eval_idx % (evaluation_instances // 2)
+                clrs_testing_data[test_idx] = test_sample
+                trans_testing_data[test_idx] = {
+                    "inputs": inputs,
+                    "hints": "\n".join(hints),
+                    "outputs": outputs
+                }
+            
+            unique_graphs.add(edgelist_hash)
+            valid_eval_idx += 1
+        print(f"Sampling complete for graph size: {graph_size}")
+        
+        _write_data(args.output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data)
     
 def main():
     args = data_utils.parse_args()
