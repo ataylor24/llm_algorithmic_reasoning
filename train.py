@@ -170,6 +170,7 @@ def main(graph_size, inference_type):
                 for i in range(len(example['instruction'])): 
                     output_texts.append(f"{example['instruction'][i]} {example['input'][i]}\n### Reachable Nodes: [{example['output'][i]}]")
                 return output_texts
+            
             response_template = config.response_template
             
         elif inference_type == "show_reasoning":

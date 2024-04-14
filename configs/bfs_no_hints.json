@@ -10,7 +10,7 @@
     "output_path": "outputs",
     "show_reasoning": false,
     "use_trl": true,
-    "use_peft": false,
+    "use_peft": true,
     "model_max_length": 4096,
     "response_template": "\n### Reachable Nodes:",
     "device": "cuda:4",

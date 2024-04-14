@@ -25,7 +25,7 @@ class GenerativeModel(nn.Module):
                 torch_dtype = torch.bfloat16
             else:
                 quant_config = None
-                torch_dtype = torch.float16
+                torch_dtype = torch.bfloat16
                 
             self.model = AutoModelForCausalLM.from_pretrained(
                 config.model_path,
