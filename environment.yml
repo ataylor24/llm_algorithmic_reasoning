@@ -1,4 +1,4 @@
-name: tanl_v2
+name: llm_gar
 channels:
   - pytorch
   - conda-forge
