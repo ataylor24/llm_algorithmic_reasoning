@@ -4,5 +4,5 @@ Data generation is an adaption of the CLRS benchmark, which can be found here: h
 Seed used = 100898
 
 To create a conda environment with the 
-```conda env create --name llmgar --file=environments.yml```
+```conda env create --file environment.yml```
 
