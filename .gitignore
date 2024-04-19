@@ -5,3 +5,4 @@ wandb/
 run_scripts/mlruns
 run_scripts/tmp_trainer
 run_scripts/out
+data_generation/data_utils.py
