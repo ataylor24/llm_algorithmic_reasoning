@@ -120,6 +120,48 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
             
     return hints
 
+def _dfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h):
+    dict_reach_h = {}
+    visited_ = set()
+    dfs_stack = []
+    hints = []
+
+    for level_h, (reach_h, pred_h) in enumerate(zip(list_reach_h, list_pred_h)):
+        if sum(reach_h) == 0 and sum(pred_h) == 0:
+            continue
+
+        for node_idx, (reach_f, pred_node_idx) in enumerate(zip(reach_h, pred_h)):
+            if not pred_node_idx in dict_reach_h:
+                dict_reach_h[pred_node_idx] = set()
+            
+            if reach_f == 1:
+                dict_reach_h[pred_node_idx].add((node_idx, pred_node_idx))
+                # push onto stack if not in visited set. Then mark as visited.
+                if node_idx not in visited_:
+                    dfs_stack.append(node_idx)
+                    visited_.add(node_idx)
+
+    # DFS uses a stack: last element to be added is the first to be processed
+    while dfs_stack:
+        current_node = dfs_stack.pop()
+        hints.append(f"Pop {current_node} from stack and explore its connections.")
+
+        if current_node in dict_reach_h:
+            # Order by node index for consistent processing, if needed
+            for node_idx, pred_node_idx in sorted(list(dict_reach_h[current_node])):
+                if node_idx not in visited_:
+                    dfs_stack.append(node_idx)
+                    visited_.add(node_idx)
+                    hints.append(f"{node_idx} is reachable from {pred_node_idx}, added to stack.")
+        else:
+            hints.append(f"No connections from {current_node}, backtrack.")
+    
+    return hints
+
+def _dfs_translate_output(list_pred):
+    list_out_idxs = [str(node_idx) for node_idx, pred_idx in enumerate(list_pred) if pred_idx != node_idx]
+    return f"### Reachable Nodes: {', '.join(list_out_idxs)}"# if len(list_out_idxs) > 0 else "There are no reachable nodes"
+
 def _datapoint_to_dict(dp):
     return {"name":dp.name,
             "location":dp.location,
