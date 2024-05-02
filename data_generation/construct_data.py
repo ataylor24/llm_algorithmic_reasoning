@@ -167,6 +167,8 @@ def _datapoint_to_dict(dp):
             "location":dp.location,
             "data":dp.data}
 
+
+# 
 def _datapoints_list_to_dict(dp_list):
     dp_dict = {}
     for dp in dp_list:
@@ -251,7 +253,7 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes = range(3, args.graph_sizes + 1)
+    graph_sizes =  [4] #range(3, args.graph_sizes + 1)
     
     for graph_size in graph_sizes:
         unique_graphs = set()
@@ -262,7 +264,7 @@ def sample_data(args):
         
         data_smp, spec = smp.build_sampler(args.algorithm, num_samples=-1, length=graph_size, seed=args.seed)
         # test_smp, spec = smp.build_sampler(args.algorithm, num_samples=evaluation_instances, length=graph_size, seed=args.seed)
-    
+       
         data_smp_iter = _iterate_sampler(data_smp, batch_size=1)
         # test_iter = _iterate_sampler(test_smp, batch_size=1)
         
@@ -271,9 +273,13 @@ def sample_data(args):
         
         while valid_train_idx < training_instances:
             train_sample = next(data_smp_iter)
-
+            # print(train_sample)
+            print( _datapoints_list_to_dict(train_sample.features.inputs))
+            # print( _datapoints_list_to_dict(train_sample.features.hints))
+            # print( _datapoints_list_to_dict(train_sample.outputs))
+            return
             inputs = _translate_inputs(args.algorithm, train_sample.features.inputs)
-            
+             
             edgelist_hash = hash_edgelist(inputs[1])
             if edgelist_hash in unique_graphs:
                 continue
