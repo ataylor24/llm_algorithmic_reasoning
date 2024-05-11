@@ -253,7 +253,7 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes =  [4] #range(3, args.graph_sizes + 1)
+    graph_sizes =  [6] #range(3, args.graph_sizes + 1)
     
     for graph_size in graph_sizes:
         unique_graphs = set()
@@ -275,8 +275,8 @@ def sample_data(args):
             train_sample = next(data_smp_iter)
             # print(train_sample)
             print( _datapoints_list_to_dict(train_sample.features.inputs))
-            # print( _datapoints_list_to_dict(train_sample.features.hints))
-            # print( _datapoints_list_to_dict(train_sample.outputs))
+            print( _datapoints_list_to_dict(train_sample.features.hints))
+            print( _datapoints_list_to_dict(train_sample.outputs))
             return
             inputs = _translate_inputs(args.algorithm, train_sample.features.inputs)
              
