@@ -209,14 +209,37 @@ def translate_outputs(alg, outputs):
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
 
+def convert_3d_array_to_2d_list(array_3d): #helper function for color field 
+    """
+    Convert a 3D numpy array to a 2D list where each row of each 2D slice is treated as a separate entity.
+    """
+    return [row.tolist() for slice_2d in array_3d for row in slice_2d]
+
+
 def translate_hints(alg, neg_edges, edgelist_lookup, hints):
     hints_dict = _datapoints_list_to_dict(hints)
 
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs"]:
         # unweighted graph algorithms
         list_reach_h = _preprocess_hint_matrix(alg, hints_dict["reach_h"]["data"])
         list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
         list_h = _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h)
+        return list_h
+    elif alg in ["dfs"]:
+        # unweighted graph algorithms
+        list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
+        list_color_h = _preprocess_hint_matrix(alg, convert_3d_array_to_2d_list(hints_dict["color"]["data"]))
+        list_discovery_h = _preprocess_hint_matrix(alg, hints_dict["d"]["data"])
+        list_final_h = _preprocess_hint_matrix(alg, hints_dict["f"]["data"])
+        list_s_prev_h = _preprocess_hint_matrix(alg, hints_dict["s_prev"]["data"])
+        list_s_h = _preprocess_hint_matrix(alg, hints_dict["s"]["data"])
+        list_source_h = _preprocess_hint_matrix(alg, hints_dict["u"]["data"])
+        list_target_h = _preprocess_hint_matrix(alg, hints_dict["v"]["data"])
+        list_s_last_h = _preprocess_hint_matrix(alg, hints_dict["s_last"]["data"])
+        list_time = _preprocess_hint_matrix(alg, hints_dict["time"]["data"])
+        list_h = _dfs_translate_reach_pred_h(neg_edges, list_pred_h, list_color_h, list_discovery_h, 
+        list_final_h, list_s_prev_h, list_s_h, 
+        list_source_h, list_target_h, list_s_last_h, list_time)
         return list_h
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
@@ -228,12 +251,16 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints):
 def _translate_inputs(alg, inputs):
     inputs_dict = _datapoints_list_to_dict(inputs)
 
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs"]:
         # unweighted graph algorithms
         algorithm = alg
         list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
         source = _translate_source_node(inputs_dict["s"]["data"])
         return algorithm, list_edge, source
+    elif alg in ["dfs"]:
+        algorithm = alg
+        list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
+        return algorithm, list_edge
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
@@ -253,7 +280,7 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes =  [6] #range(3, args.graph_sizes + 1)
+    graph_sizes =  [4] #range(3, args.graph_sizes + 1)
     
     for graph_size in graph_sizes:
         unique_graphs = set()
@@ -273,11 +300,11 @@ def sample_data(args):
         
         while valid_train_idx < training_instances:
             train_sample = next(data_smp_iter)
-            # print(train_sample)
+            print(train_sample)
             print( _datapoints_list_to_dict(train_sample.features.inputs))
             print( _datapoints_list_to_dict(train_sample.features.hints))
             print( _datapoints_list_to_dict(train_sample.outputs))
-            return
+            
             inputs = _translate_inputs(args.algorithm, train_sample.features.inputs)
              
             edgelist_hash = hash_edgelist(inputs[1])
@@ -286,7 +313,7 @@ def sample_data(args):
             
             hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints)
             outputs = translate_outputs(args.algorithm, train_sample.outputs)
-
+            return
             clrs_training_data[valid_train_idx] = train_sample
             trans_training_data[valid_train_idx] = {
                 "inputs": inputs,
