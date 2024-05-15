@@ -44,6 +44,7 @@ def write_clrs_format(outfile, data):
     write_pickle(outfile, data)
 
 
+
 def write_llama_format_deprecated(output_dir, data_sect, data):
     warnings.warn("write_llama_format_deprecated is deprecated and may be removed in a future version. Use <write_llama_format> instead.", DeprecationWarning, stacklevel=2)
     for hint_level in HINT_LEVELS:

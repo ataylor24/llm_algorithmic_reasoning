@@ -120,42 +120,59 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
             
     return hints
 
-def _dfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h):
+def _dfs_translate_reach_pred_h(neg_edges, list_pred_h, list_color_h, list_discovery_h, 
+                                list_final_h, list_s_prev_h, list_s_h, 
+                                list_source_h, list_target_h, list_s_last_h, list_time):
     dict_reach_h = {}
     visited_ = set()
-    dfs_stack = []
-    hints = []
 
-    for level_h, (reach_h, pred_h) in enumerate(zip(list_reach_h, list_pred_h)):
-        if sum(reach_h) == 0 and sum(pred_h) == 0:
+    # Initialize the reachability dictionary based on predecessor history
+    for level_h, pred_h in enumerate(list_pred_h):
+        for node_idx, pred_node_idx in enumerate(pred_h):
+            if pred_node_idx != node_idx:  # Ensure we don't include self-loops unless explicitly defined
+                if pred_node_idx not in dict_reach_h:
+                    dict_reach_h[pred_node_idx] = set()
+                dict_reach_h[pred_node_idx].add(node_idx)
+
+    # Initialize the stack with the first set of reachable nodes from list_s_h (start nodes)
+    reach_h_stack = set()
+    for source_nodes in list_s_h:
+        for node_idx, source in enumerate(source_nodes[0]):  # Extract the actual values
+            if source == 1:
+                reach_h_stack.add(node_idx)
+                visited_.add(node_idx)
+    
+    hints = []
+    dfs_stack = list(reach_h_stack)
+    list_node_idxs = [i for i in range(len(list_pred_h[0]))]
+    dfs_explored = set()
+
+    while dfs_stack:
+        current_source = dfs_stack.pop()
+        hints.append(f"Pop {current_source} from stack, and consider its connections.")
+        
+        if neg_edges:
+            dfs_explored.add(current_source)
+
+        if current_source not in dict_reach_h or len(dict_reach_h[current_source]) == 0:
+            hints.append(f"Source {current_source} has no connections, continue to next stack element.")
             continue
 
-        for node_idx, (reach_f, pred_node_idx) in enumerate(zip(reach_h, pred_h)):
-            if not pred_node_idx in dict_reach_h:
-                dict_reach_h[pred_node_idx] = set()
-            
-            if reach_f == 1:
-                dict_reach_h[pred_node_idx].add((node_idx, pred_node_idx))
-                # push onto stack if not in visited set. Then mark as visited.
-                if node_idx not in visited_:
-                    dfs_stack.append(node_idx)
-                    visited_.add(node_idx)
+        dict_reach_h[current_source] = sorted(list(dict_reach_h[current_source]), reverse=True)
+        
+        for node_idx in dict_reach_h[current_source]:
+            dfs_stack.append(node_idx)
+            hints.append(f"{node_idx} is reachable from {current_source}.")
+        if neg_edges:
+            for node_idx in list_node_idxs:
+                if node_idx == current_source or node_idx in dfs_explored:
+                    continue
+                if node_idx not in dfs_explored:
+                    if node_idx in dict_reach_h.get(current_source, []):
+                        hints.append(f"{node_idx} is reachable from {current_source}, but has been reached already.")
+                    else:
+                        hints.append(f"{node_idx} is not reachable from {current_source}.")
 
-    # DFS uses a stack: last element to be added is the first to be processed
-    while dfs_stack:
-        current_node = dfs_stack.pop()
-        hints.append(f"Pop {current_node} from stack and explore its connections.")
-
-        if current_node in dict_reach_h:
-            # Order by node index for consistent processing, if needed
-            for node_idx, pred_node_idx in sorted(list(dict_reach_h[current_node])):
-                if node_idx not in visited_:
-                    dfs_stack.append(node_idx)
-                    visited_.add(node_idx)
-                    hints.append(f"{node_idx} is reachable from {pred_node_idx}, added to stack.")
-        else:
-            hints.append(f"No connections from {current_node}, backtrack.")
-    
     return hints
 
 def _dfs_translate_output(list_pred):
