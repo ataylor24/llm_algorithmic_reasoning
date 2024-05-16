@@ -14,16 +14,27 @@ def _preprocess_hint_matrix(alg, matrix_h):
     ''' For graph-based approaches (ex. BFS), the hint matrices are actually 2D lists.
         The row index position implicitly refers to the node in question, and the
         value at the index depends on the hint type. '''
+    print(f"Preprocessing hint matrix for algorithm: {alg}")
+    print(f"Type of matrix_h: {type(matrix_h)}")
+    print(f"Shape of matrix_h: {matrix_h.shape if isinstance(matrix_h, np.ndarray) else 'N/A'}")
+    
+    if not isinstance(matrix_h, np.ndarray):
+        raise TypeError(f"Expected matrix_h to be a numpy array, but got {type(matrix_h)}")
+    
+    if matrix_h.ndim != 2:
+        raise ValueError(f"Expected matrix_h to be a 2D matrix, but got an array with {matrix_h.ndim} dimensions")
+    
     if alg in ["bfs", "dfs"]:
         # unweighted graph algorithms
         list_flat_h = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()]
+        print(f"Processed list_flat_h: {list_flat_h}")
         return list_flat_h
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
-        
+    
 def _translate_unweighted_graph(adj_matrix):
     adj_matrix = adj_matrix.squeeze()
     rows, cols = adj_matrix.shape
