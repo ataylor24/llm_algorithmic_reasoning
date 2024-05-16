@@ -14,15 +14,15 @@ def _preprocess_hint_matrix(alg, matrix_h):
     ''' For graph-based approaches (ex. BFS), the hint matrices are actually 2D lists.
         The row index position implicitly refers to the node in question, and the
         value at the index depends on the hint type. '''
-    print(f"Preprocessing hint matrix for algorithm: {alg}")
-    print(f"Type of matrix_h: {type(matrix_h)}")
-    print(f"Shape of matrix_h: {matrix_h.shape if isinstance(matrix_h, np.ndarray) else 'N/A'}")
+    # print(f"Preprocessing hint matrix for algorithm: {alg}")
+    # print(f"Type of matrix_h: {type(matrix_h)}")
+    # print(f"Shape of matrix_h: {matrix_h.shape if isinstance(matrix_h, np.ndarray) else 'N/A'}")
     
-    if not isinstance(matrix_h, np.ndarray):
-        raise TypeError(f"Expected matrix_h to be a numpy array, but got {type(matrix_h)}")
+    # if not isinstance(matrix_h, np.ndarray):
+    #     raise TypeError(f"Expected matrix_h to be a numpy array, but got {type(matrix_h)}")
     
-    if matrix_h.ndim != 2:
-        raise ValueError(f"Expected matrix_h to be a 2D matrix, but got an array with {matrix_h.ndim} dimensions")
+    # if matrix_h.ndim != 2:
+    #     raise ValueError(f"Expected matrix_h to be a 2D matrix, but got an array with {matrix_h.ndim} dimensions")
     
     if alg in ["bfs", "dfs"]:
         # unweighted graph algorithms
