@@ -24,10 +24,15 @@ def _preprocess_hint_matrix(alg, matrix_h):
     # if matrix_h.ndim != 2:
     #     raise ValueError(f"Expected matrix_h to be a 2D matrix, but got an array with {matrix_h.ndim} dimensions")
     
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs"]:
         # unweighted graph algorithms
         list_flat_h = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()]
         print(f"Processed list_flat_h: {list_flat_h}")
+        return list_flat_h
+    elif alg in ["dfs"]:
+        # unweighted graph algorithms
+        list_flat_h = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()]
+        # print(f"Processed list_flat_h: {list_flat_h}")
         return list_flat_h
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
@@ -131,7 +136,7 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
             
     return hints
 
-def _dfs_translate_reach_pred_h(neg_edges, list_pred_h, list_color_h, list_discovery_h, 
+def _dfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_discovery_h, 
                                 list_final_h, list_s_prev_h, list_s_h, 
                                 list_source_h, list_target_h, list_s_last_h, list_time):
     dict_reach_h = {}
@@ -148,13 +153,17 @@ def _dfs_translate_reach_pred_h(neg_edges, list_pred_h, list_color_h, list_disco
     # Initialize the stack with the first set of reachable nodes from list_s_h (start nodes)
     reach_h_stack = set()
     for source_nodes in list_s_h:
-        for node_idx, source in enumerate(source_nodes[0]):  # Extract the actual values
-            if source == 1:
-                reach_h_stack.add(node_idx)
-                visited_.add(node_idx)
+        # Check if the source_nodes are structured correctly
+        if isinstance(source_nodes, np.ndarray) or isinstance(source_nodes, list):
+            for node_idx, source in enumerate(source_nodes):
+                if source == 1:
+                    reach_h_stack.add(node_idx)
+                    visited_.add(node_idx)
+        else:
+            raise ValueError(f"Unexpected structure in list_s_h: {source_nodes}")
     
     hints = []
-    dfs_stack = list(reach_h_stack)
+    dfs_stack = list(sorted(reach_h_stack))  # Start with lexicographically smallest
     list_node_idxs = [i for i in range(len(list_pred_h[0]))]
     dfs_explored = set()
 
@@ -169,11 +178,17 @@ def _dfs_translate_reach_pred_h(neg_edges, list_pred_h, list_color_h, list_disco
             hints.append(f"Source {current_source} has no connections, continue to next stack element.")
             continue
 
-        dict_reach_h[current_source] = sorted(list(dict_reach_h[current_source]), reverse=True)
+        dict_reach_h[current_source] = sorted(list(dict_reach_h[current_source]))
         
         for node_idx in dict_reach_h[current_source]:
-            dfs_stack.append(node_idx)
-            hints.append(f"{node_idx} is reachable from {current_source}.")
+            # dfs_stack.append(node_idx)
+            # hints.append(f"{node_idx} is reachable from {current_source}.")
+           if node_idx not in visited_:
+                dfs_stack.append(node_idx)
+                visited_.add(node_idx)
+                hints.append(f"{node_idx} is reachable from {current_source}.")
+           else:
+                hints.append(f"{node_idx} is reachable from {current_source}, but has been reached already.") 
         if neg_edges:
             for node_idx in list_node_idxs:
                 if node_idx == current_source or node_idx in dfs_explored:
@@ -182,7 +197,11 @@ def _dfs_translate_reach_pred_h(neg_edges, list_pred_h, list_color_h, list_disco
                     if node_idx in dict_reach_h.get(current_source, []):
                         hints.append(f"{node_idx} is reachable from {current_source}, but has been reached already.")
                     else:
-                        hints.append(f"{node_idx} is not reachable from {current_source}.")
+                        if ((node_idx, current_source) in edgelist_lookup or
+                            (current_source, node_idx) in edgelist_lookup):
+                            hints.append(f"{node_idx} is not reachable from {current_source}.")
+                        else:
+                            hints.append(f"{node_idx} is not reachable from {current_source}, and there is no edge connecting them.")
 
     return hints
 
@@ -256,7 +275,7 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints):
     elif alg in ["dfs"]:
         # unweighted graph algorithms
         list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
-        list_color_h = _preprocess_hint_matrix(alg, convert_3d_array_to_2d_list(hints_dict["color"]["data"]))
+        list_color_h = _preprocess_hint_matrix(alg, hints_dict["color"]["data"])
         list_discovery_h = _preprocess_hint_matrix(alg, hints_dict["d"]["data"])
         list_final_h = _preprocess_hint_matrix(alg, hints_dict["f"]["data"])
         list_s_prev_h = _preprocess_hint_matrix(alg, hints_dict["s_prev"]["data"])
@@ -265,7 +284,7 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints):
         list_target_h = _preprocess_hint_matrix(alg, hints_dict["v"]["data"])
         list_s_last_h = _preprocess_hint_matrix(alg, hints_dict["s_last"]["data"])
         list_time = _preprocess_hint_matrix(alg, hints_dict["time"]["data"])
-        list_h = _dfs_translate_reach_pred_h(neg_edges, list_pred_h, list_color_h, list_discovery_h, 
+        list_h = _dfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_discovery_h, 
         list_final_h, list_s_prev_h, list_s_h, 
         list_source_h, list_target_h, list_s_last_h, list_time)
         return list_h
@@ -338,10 +357,16 @@ def sample_data(args):
             edgelist_hash = hash_edgelist(inputs[1])
             if edgelist_hash in unique_graphs:
                 continue
+            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
+            # Add print statements to display the DFS hints
+            print("DFS Hints:")
+            for hint in hints:
+                print(hint)
+            return;   
             
-            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints)
+            # hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints)
             outputs = translate_outputs(args.algorithm, train_sample.outputs)
-            return
+            # return
             clrs_training_data[valid_train_idx] = train_sample
             trans_training_data[valid_train_idx] = {
                 "inputs": inputs,
