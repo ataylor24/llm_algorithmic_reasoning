@@ -191,7 +191,7 @@ class Sampler(abc.ABC):
     return self._rng.randint(0, high=chars, size=(length,))
 
   def _random_er_graph(self, nb_nodes, p=0.5, directed=False, acyclic=False,
-                       weighted=False, low=0.0, high=1.0):
+                       weighted=False, low=0, high=10, integer_based=True):
     """Random Erdos-Renyi graph."""
 
     mat = self._rng.binomial(1, p, size=(nb_nodes, nb_nodes))
@@ -202,11 +202,17 @@ class Sampler(abc.ABC):
       p = self._rng.permutation(nb_nodes)  # To allow nontrivial solutions
       mat = mat[p, :][:, p]
     if weighted:
-      weights = self._rng.uniform(low=low, high=high, size=(nb_nodes, nb_nodes))
+      weights = self._rng.random_integers(low=low, high=high, size=(nb_nodes, nb_nodes))
+      
       if not directed:
-        weights *= np.transpose(weights)
-        weights = np.sqrt(weights + 1e-3)  # Add epsilon to protect underflow
-      mat = mat.astype(float) * weights
+        if not integer_based:
+          weights *= np.transpose(weights)
+          weights = np.sqrt(weights + 1e-3)  # Add epsilon to protect underflow
+        else:
+          weights = np.maximum(weights, weights.T)
+      mat = mat.astype(int) * weights
+      print("weights", weights)
+      print("mat", mat)
     return mat
 
   def _random_community_graph(self, nb_nodes, k=4, p=0.5, eps=0.01,
@@ -516,7 +522,7 @@ class FloydWarshallSampler(Sampler):
       length: int,
       p: Tuple[float, ...] = (0.5,),
       low: float = 0.,
-      high: float = 1.,
+      high: float = 10.,
   ):
     graph = self._random_er_graph(
         nb_nodes=length,
