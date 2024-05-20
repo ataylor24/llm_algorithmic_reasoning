@@ -41,6 +41,21 @@ def _translate_unweighted_graph(adj_matrix):
 
     return edge_list
 
+def _fw_translate_hints(distance_matrix):
+    hints = []
+    N = distance_matrix.shape[0]
+    for i in range(1, N):
+        hints.append(f"Queue: {list(range(i-1, N + 1))}\n Dequeue {i-1}")
+        current_dist_matrix = distance_matrix[i, 0]
+        # Convert the current distance matrix to edge list form
+        edge_list = []
+        for j in range(N):
+            for k in range(j + 1, N):  # Avoiding duplicates by iterating from j + 1
+                if current_dist_matrix[j, k] != 0:
+                    edge_list.append((j, k, current_dist_matrix[j, k]))
+        hints.append(f"Updated distances: {edge_list}")
+    return hints
+
 def _translate_source_node(source_list):
     return int(np.nonzero(source_list.flatten())[0][0])
 
@@ -174,6 +189,9 @@ def translate_outputs(alg, outputs):
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
+    elif alg == "floyd_warshall":
+        path_matrix = np.squeeze(outputs_dict["Pi"]["data"]).tolist()
+        return {"path_matrix": path_matrix}
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
@@ -190,6 +208,9 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints):
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
+    elif alg == "floyd_warshall":
+        dist_matrix = hints_dict["D"]["data"]
+        return _fw_translate_hints(dist_matrix)
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
@@ -206,6 +227,23 @@ def _translate_inputs(alg, inputs):
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
+    elif alg == "floyd_warshall":
+        algorithm = alg
+        adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
+        weights = np.squeeze(inputs_dict["A"]["data"])
+        edge_set = set()
+        list_edge_with_weights = []
+
+        for i in range(len(adj_matrix)):
+            for j in range(len(adj_matrix[i])):
+                if adj_matrix[i][j] == 1 and weights[i][j] != 0:
+                    edge = (i, j, float(weights[i][j]))
+                    reverse_edge = (j, i, float(weights[j][i]))
+                    if reverse_edge not in edge_set:
+                        list_edge_with_weights.append(edge)
+                        edge_set.add(edge)
+
+        return algorithm, list_edge_with_weights, ""
     else:
         raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
 
@@ -222,7 +260,7 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes = [3] #range(3, args.graph_sizes + 1)
+    graph_sizes = range(3, args.graph_sizes + 1)
     
     for graph_size in graph_sizes:
         unique_graphs = set()
@@ -261,7 +299,6 @@ def sample_data(args):
             
             unique_graphs.add(edgelist_hash)
             valid_train_idx += 1
-            
         while valid_eval_idx < evaluation_instances:
             test_sample = next(data_smp_iter)
             inputs = _translate_inputs(args.algorithm, test_sample.features.inputs)

@@ -44,7 +44,12 @@ FORMATTED_ALGORITHMS = {
         "name": "Bellman-Ford",
         "goal": "shortest path",
         "instruction": ""
-        }
+        },
+    "floyd_warshall": {
+        "name": "Floyd-Warshall",
+        "goal": "shortest-path",
+        "instruction": "Output the final predecessor matrix"
+    }
 }
 
 TRAIN_TEST_SPLIT = {
@@ -92,7 +97,10 @@ def write_llama_chat_format(output_dir, data_sect, data):
                 hints = execution_step + "\n" if (reasoning_strategy != "IO" and data_sect != "testing") or i % 2 == 1 else ""
 
                 if i == 0:
-                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                    if source_node == "":
+                        content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; \n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                    else:
+                        content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
                 elif i + 1 >= len(data[idx]["hints"]):
                     content =  data[idx]["outputs"]
                 elif i % 2 == 1:
@@ -115,30 +123,33 @@ def write_llama_chat_format(output_dir, data_sect, data):
         write_data_config_readme(out_yml)
         
         write_json(outfile + ".json", llama_data)
-        
+
 def write_llama_format(output_dir, data_sect, data):
     for hint_level in REASONING_STRATEGIES:
         llama_data = []
-            
         for idx in data:
-            
             algorithm = data[idx]["inputs"][0]
             edge_list = data[idx]["inputs"][1]
             source_node = data[idx]["inputs"][2]
-                        
-            
-            llama_data_inst = {
+
+            if source_node == "":
+                llama_data_inst = {
                 "instruction": f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph:",
-                "input": f"Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}.",
+                "input": f"Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}];.",
                 "output": data[idx]["outputs"]
-            }
+                }
+            else:
+                llama_data_inst = {
+                    "instruction": f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph:",
+                    "input": f"Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}.",
+                    "output": data[idx]["outputs"]
+                }
             if hint_level != "no_hints" and data_sect != "testing":
                 llama_data_inst["hints"] = data[idx]["hints"]
 
             llama_data.append(llama_data_inst)  
-        
+
         outfile = os.path.join(os.path.join(output_dir,hint_level), data_sect)
-        
         write_json(outfile + ".json", llama_data)
     
 def resolve_output_dirs(output_dir, algorithm, output_formats, graph_size):
