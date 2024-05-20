@@ -136,74 +136,347 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
             
     return hints
 
+
+#most recent function i worked on with alex
+# def _dfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_discovery_h, 
+#                                 list_final_h, list_s_prev_h, list_s_h, 
+#                                 list_source_h, list_target_h, list_s_last_h, list_time):
+#     dict_reach_h = {}
+#     visited_ = set()
+#     reachable_from_node = {}  # Dictionary to keep track of reachable nodes from each node
+
+#     # Initialize the reachability dictionary based on predecessor history
+#     for level_h, pred_h in enumerate(list_pred_h):
+#         for node_idx, pred_node_idx in enumerate(pred_h):
+#             if pred_node_idx != node_idx:  # Ensure we don't include self-loops unless explicitly defined
+#                 if pred_node_idx not in dict_reach_h:
+#                     dict_reach_h[pred_node_idx] = set()
+#                 dict_reach_h[pred_node_idx].add(node_idx)
+
+#     # Initialize the stack with the first set of reachable nodes from list_s_h (start nodes)
+#     reach_h_stack = set()
+#     for source_nodes in list_s_h:
+#         if isinstance(source_nodes, np.ndarray) or isinstance(source_nodes, list):
+#             for node_idx, source in enumerate(source_nodes):
+#                 if source == 1:
+#                     reach_h_stack.add(node_idx)
+#                     visited_.add(node_idx)
+#         else:
+#             raise ValueError(f"Unexpected structure in list_s_h: {source_nodes}")
+
+#     hints = []
+#     dfs_stack = list(sorted(reach_h_stack))  # Start with lexicographically smallest
+#     list_node_idxs = [i for i in range(len(list_pred_h[0]))]
+
+#     #
+#     # def update_reachable_from_node(node):
+#     #     if node not in reachable_from_node:
+#     #         reachable_from_node[node] = set()
+#     #     stack = [node]
+#     #     while stack:
+#     #         current = stack.pop()
+#     #         if current in dict_reach_h:
+#     #             for neighbor in dict_reach_h[current]:
+#     #                 reachable_from_node[node].add(neighbor)
+#     #                 if neighbor not in reachable_from_node[node]:
+#     #                     stack.append(neighbor)
+#     #                 # Also update reachable nodes for each neighbor's previously reachable nodes
+#     #                 if neighbor in reachable_from_node:
+#     # 
+#     #       
+#     #               reachable_from_node[node].update(reachable_from_node[neighbor])
+#     #current source : reachable_nodes (ex: 0: [3,2] ; 1: [])
+#     all_reachable = {} 
+
+
+#     while dfs_stack:# ex: [0,1,2,3]
+#         #TODO: add inner loop executing a single iteration of dfs on current source 
+        
+#         current_source = dfs_stack.pop()
+#         #TODO: Flatten dictionary (ex. DFS_STACK: [0,1,2,3] ; all_reachable_flat(set): [0,2,3], current_source: 1; all_reachable_flat: [0,1,2,3], current_source: 2, etc;)
+#         current_stack = dfs_stack
+#         hints.append(f"Instruction: Please List all known reachable nodes.")
+#         hints.append(f"Current Stack: {current_stack}")
+#         hints.append(f"Pop: {current_source}")
+
+        
+
+#         if current_source not in dict_reach_h or len(dict_reach_h[current_source]) == 0:
+#             hints.append(f"Source {current_source} has no connections, continue to next stack element.")
+#             continue
+
+#         # Ensure we visit all connections from the current source
+#         neighbors = sorted(list(dict_reach_h[current_source]))
+#         hints.append(f"Neighborhood of {current_source}: {neighbors}")
+
+#         # Update reachable nodes for the current source
+#         # update_reachable_from_node(current_source)
+
+#         # Include the current source in reachable nodes
+#         reachable_from_node[current_source].add(current_source)
+#         hints.append(f"Reachable nodes from {current_source}: {sorted(reachable_from_node[current_source])}")
+
+#         for node_idx in neighbors:
+#             if node_idx not in visited_:
+#                 dfs_stack.append(node_idx)
+#                 visited_.add(node_idx)
+
+   
+
+#     reachable_nodes = sorted(all_reachable)
+#     hints.append("List all known reachable nodes.")
+#     #for loop here(ex:reachable from 0: ...,)
+#     hints.append(f"Reachable Nodes: {reachable_nodes}")
+# #for loop (ex: reachable from 0: )
+#     return hints
+
+#best working version- just missing the known reachable
+# def _dfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_discovery_h, 
+#                                 list_final_h, list_s_prev_h, list_s_h, 
+#                                 list_source_h, list_target_h, list_s_last_h, list_time):
+#     visited_ = set()
+#     reachable_from_node = {}  # Dictionary to keep track of reachable nodes from each node
+#     all_reachable_flat = set()  # Set to keep track of all reached nodes as tuples
+
+#     # Convert edgelist_lookup to bidirectional adjacency dictionary
+#     def edgelist_to_dict(edgelist_lookup):
+#         adj_dict = {}
+#         for (u, v) in edgelist_lookup:
+#             if u not in adj_dict:
+#                 adj_dict[u] = set()
+#             if v not in adj_dict:
+#                 adj_dict[v] = set()
+#             adj_dict[u].add(v)
+#             adj_dict[v].add(u)
+#         return adj_dict
+    
+#     adj_dict = edgelist_to_dict(edgelist_lookup)
+
+#     # Ensure all nodes from list_s_h are included in adj_dict
+#     for source_nodes in list_s_h:
+#         if isinstance(source_nodes, np.ndarray) or isinstance(source_nodes, list):
+#             for node_idx, source in enumerate(source_nodes):
+#                 if node_idx not in adj_dict:
+#                     adj_dict[node_idx] = set()
+#         else:
+#             raise ValueError(f"Unexpected structure in list_s_h: {source_nodes}")
+
+#     # Initialize reachable_from_node for all nodes in adj_dict
+#     for node in adj_dict:
+#         reachable_from_node[node] = set()
+
+#     # Initialize the stack with all nodes in numerical order
+#     all_nodes = sorted(adj_dict.keys())
+#     reach_h_stack = set()
+#     for node in all_nodes:
+#         reach_h_stack.add(node)
+#         reachable_from_node[node] = {node}
+
+#     # Flatten reach_h_stack for use in all_reachable_flat
+    
+
+#     hints = []
+#     dfs_stack = list(all_nodes)  # Start with all nodes in numerical order
+
+#     def find_reachable_nodes(node, adj_dict, reachable_set):
+#         if node in adj_dict:
+#             for neighbor in adj_dict[node]:
+#                 if neighbor not in reachable_set:
+#                     reachable_set.add(neighbor)
+#                     find_reachable_nodes(neighbor, adj_dict, reachable_set)
+
+#     while dfs_stack:
+#         current_source = dfs_stack.pop()
+#         current_stack = list(dfs_stack)
+#         hints.append(f"Instruction: Please List all known reachable nodes.")
+#         hints.append(f"Pop: {current_source}")
+#         hints.append(f"Current Stack: {current_stack}")
+
+#         if current_source in all_reachable_flat:
+#             hints.append(f"Source {current_source} has been reached already, continue to next stack element.")
+#             continue
+
+#         all_reachable_flat.add(current_source)
+
+
+#         #case for solo nodes or nodes not in adjacency dictionary
+#         if current_source not in adj_dict or len(adj_dict[current_source]) == 0:
+#             hints.append(f"Source {current_source} has no connections, continue to next stack element.")
+#             hints.append(f"Direct neighbors for node {current_source}: []")
+#             hints.append(f"Reachable nodes for node {current_source}: [{current_source}]")
+#             continue
+
+#         neighbors = sorted(list(adj_dict[current_source]))
+
+#         # Include the current source in reachable nodes
+#         reachable_from_node[current_source].add(current_source)
+
+#         for node_idx in neighbors:
+#             if node_idx not in visited_:
+#                 visited_.add(node_idx)
+
+#         # Add current source to the visited set
+#         visited_.add(current_source)
+
+#         # Add the current source and its reachable nodes to all_reachable_flat
+#         all_reachable_flat.update(reachable_from_node[current_source] | {current_source})
+
+#         # Update reachable_from_node for the current source
+#         reachable_set = set()
+#         find_reachable_nodes(current_source, adj_dict, reachable_set)
+#         reachable_from_node[current_source].update(reachable_set)
+
+#         # Add current reachable nodes and direct neighbors to hints
+#         hints.append(f"Direct neighbors for node {current_source}: {sorted(list(adj_dict[current_source]))}")
+#         hints.append(f"Reachable nodes for node {current_source}: {sorted(reachable_from_node[current_source])}")
+#         # hints.append("\n")
+#         # # Debugging statement to show the visited set and dfs_stack
+#         # print(f"Visited nodes: {visited_}")
+#         # print(f"DFS stack: {dfs_stack}")
+
+#     # Final output for reachable nodes
+#     all_reachable = set()
+#     for node in reach_h_stack:
+#         if node in reachable_from_node:
+#             all_reachable.update(reachable_from_node[node])
+
+#     reachable_nodes = sorted(all_reachable)
+#     hints.append("")
+#     hints.append("List all known reachable nodes.")
+#     hints.append(f"Response: Reachable Nodes: {reachable_nodes}")
+
+#     # Debugging statement to show the final reachable nodes
+#     print(f"Final reachable nodes: {reachable_nodes}")
+
+#     return hints
+
 def _dfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_discovery_h, 
                                 list_final_h, list_s_prev_h, list_s_h, 
                                 list_source_h, list_target_h, list_s_last_h, list_time):
-    dict_reach_h = {}
     visited_ = set()
+    reachable_from_node = {}  # Dictionary to keep track of reachable nodes from each node
+    all_reachable_flat = set()  # Set to keep track of all reached nodes as tuples
+    all_known_reachable = set()  # Set to accumulate all known reachable nodes
 
-    # Initialize the reachability dictionary based on predecessor history
-    for level_h, pred_h in enumerate(list_pred_h):
-        for node_idx, pred_node_idx in enumerate(pred_h):
-            if pred_node_idx != node_idx:  # Ensure we don't include self-loops unless explicitly defined
-                if pred_node_idx not in dict_reach_h:
-                    dict_reach_h[pred_node_idx] = set()
-                dict_reach_h[pred_node_idx].add(node_idx)
+    # Convert edgelist_lookup to bidirectional adjacency dictionary
+    def edgelist_to_dict(edgelist_lookup):
+        adj_dict = {}
+        for (u, v) in edgelist_lookup:
+            if u not in adj_dict:
+                adj_dict[u] = set()
+            if v not in adj_dict:
+                adj_dict[v] = set()
+            adj_dict[u].add(v)
+            adj_dict[v].add(u)
+        return adj_dict
+    
+    adj_dict = edgelist_to_dict(edgelist_lookup)
 
-    # Initialize the stack with the first set of reachable nodes from list_s_h (start nodes)
-    reach_h_stack = set()
+    # Ensure all nodes from list_s_h are included in adj_dict
     for source_nodes in list_s_h:
-        # Check if the source_nodes are structured correctly
         if isinstance(source_nodes, np.ndarray) or isinstance(source_nodes, list):
             for node_idx, source in enumerate(source_nodes):
-                if source == 1:
-                    reach_h_stack.add(node_idx)
-                    visited_.add(node_idx)
+                if node_idx not in adj_dict:
+                    adj_dict[node_idx] = set()
         else:
             raise ValueError(f"Unexpected structure in list_s_h: {source_nodes}")
-    
+
+    # Initialize reachable_from_node for all nodes in adj_dict
+    for node in adj_dict:
+        reachable_from_node[node] = set()
+
+    # Initialize the stack with all nodes in numerical order
+    all_nodes = sorted(adj_dict.keys())
+    reach_h_stack = set()
+    for node in all_nodes:
+        reach_h_stack.add(node)
+        reachable_from_node[node] = {node}
+
+    # Flatten reach_h_stack for use in all_reachable_flat
+    all_reachable_flat.update(reach_h_stack)
+
     hints = []
-    dfs_stack = list(sorted(reach_h_stack))  # Start with lexicographically smallest
-    list_node_idxs = [i for i in range(len(list_pred_h[0]))]
-    dfs_explored = set()
+    dfs_stack = list(all_nodes)  # Start with all nodes in numerical order
+
+    def find_reachable_nodes(node, adj_dict, reachable_set):
+        if node in adj_dict:
+            for neighbor in adj_dict[node]:
+                if neighbor not in reachable_set:
+                    reachable_set.add(neighbor)
+                    find_reachable_nodes(neighbor, adj_dict, reachable_set)
 
     while dfs_stack:
         current_source = dfs_stack.pop()
-        hints.append(f"Pop {current_source} from stack, and consider its connections.")
-        
-        if neg_edges:
-            dfs_explored.add(current_source)
+        current_stack = list(dfs_stack)
+        hints.append(f"Instruction: Please List all known reachable nodes.")
+        hints.append(f"Pop: {current_source}")
+        hints.append(f"Current Stack: {current_stack}")
 
-        if current_source not in dict_reach_h or len(dict_reach_h[current_source]) == 0:
-            hints.append(f"Source {current_source} has no connections, continue to next stack element.")
+        if current_source in all_reachable_flat:
+            hints.append(f"Source {current_source} has been reached already, continue to next stack element.")
             continue
 
-        dict_reach_h[current_source] = sorted(list(dict_reach_h[current_source]))
-        
-        for node_idx in dict_reach_h[current_source]:
-            # dfs_stack.append(node_idx)
-            # hints.append(f"{node_idx} is reachable from {current_source}.")
-           if node_idx not in visited_:
+        all_reachable_flat.add(current_source)
+
+        if current_source not in adj_dict or len(adj_dict[current_source]) == 0:
+            hints.append(f"Source {current_source} has no connections, continue to next stack element.")
+            hints.append(f"Direct neighbors for node {current_source}: []")
+            hints.append(f"Reachable nodes for node {current_source}: [{current_source}]")
+            all_known_reachable.update({current_source})
+            hints.append(f"All known reachable: {sorted(all_known_reachable)}")
+            continue
+
+        # Ensure we visit all connections from the current source
+        neighbors = sorted(list(adj_dict[current_source]))
+        hints.append(f"Neighborhood of {current_source}: {neighbors}")
+
+        # Include the current source in reachable nodes
+        reachable_from_node[current_source].add(current_source)
+
+        for node_idx in neighbors:
+            if node_idx not in visited_:
                 dfs_stack.append(node_idx)
                 visited_.add(node_idx)
-                hints.append(f"{node_idx} is reachable from {current_source}.")
-           else:
-                hints.append(f"{node_idx} is reachable from {current_source}, but has been reached already.") 
-        if neg_edges:
-            for node_idx in list_node_idxs:
-                if node_idx == current_source or node_idx in dfs_explored:
-                    continue
-                if node_idx not in dfs_explored:
-                    if node_idx in dict_reach_h.get(current_source, []):
-                        hints.append(f"{node_idx} is reachable from {current_source}, but has been reached already.")
-                    else:
-                        if ((node_idx, current_source) in edgelist_lookup or
-                            (current_source, node_idx) in edgelist_lookup):
-                            hints.append(f"{node_idx} is not reachable from {current_source}.")
-                        else:
-                            hints.append(f"{node_idx} is not reachable from {current_source}, and there is no edge connecting them.")
+
+        # Add current source to the visited set
+        visited_.add(current_source)
+
+        # Update reachable_from_node for the current source by calling find_reachable_nodes
+        reachable_set = set()
+        find_reachable_nodes(current_source, adj_dict, reachable_set)
+        reachable_from_node[current_source].update(reachable_set)
+
+        # Add the current source and its reachable nodes to all_reachable_flat
+        all_reachable_flat.update(reachable_from_node[current_source] | {current_source})
+
+        # Update all_known_reachable
+        all_known_reachable.update(reachable_from_node[current_source])
+
+        # Add current reachable nodes and direct neighbors to hints
+        hints.append(f"Direct neighbors for node {current_source}: {sorted(list(adj_dict[current_source]))}")
+        hints.append(f"Reachable nodes for node {current_source}: {sorted(reachable_from_node[current_source])}")
+        hints.append(f"All known reachable: {sorted(all_known_reachable)}")
+
+        # Debugging statement to show the visited set and dfs_stack
+        print(f"Visited nodes: {visited_}")
+        print(f"DFS stack: {dfs_stack}")
+
+    # Final output for reachable nodes
+    all_reachable = set()
+    for node in reach_h_stack:
+        if node in reachable_from_node:
+            all_reachable.update(reachable_from_node[node])
+
+    reachable_nodes = sorted(all_reachable)
+    hints.append("")
+    hints.append("List all known reachable nodes.")
+    hints.append(f"Response: Reachable Nodes: {reachable_nodes}")
+
+    # Debugging statement to show the final reachable nodes
+    print(f"Final reachable nodes: {reachable_nodes}")
 
     return hints
+
 
 def _dfs_translate_output(list_pred):
     list_out_idxs = [str(node_idx) for node_idx, pred_idx in enumerate(list_pred) if pred_idx != node_idx]
@@ -265,6 +538,12 @@ def convert_3d_array_to_2d_list(array_3d): #helper function for color field
 
 def translate_hints(alg, neg_edges, edgelist_lookup, hints):
     hints_dict = _datapoints_list_to_dict(hints)
+    
+
+
+    # inputs_dict = edgelist_lookup
+    # list_edge = inputs_dict.get("list_edge")
+    print(edgelist_lookup)
 
     if alg in ["bfs"]:
         # unweighted graph algorithms
@@ -274,6 +553,7 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints):
         return list_h
     elif alg in ["dfs"]:
         # unweighted graph algorithms
+        # list_edge = hints_dict["list_edge"]
         list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
         list_color_h = _preprocess_hint_matrix(alg, hints_dict["color"]["data"])
         list_discovery_h = _preprocess_hint_matrix(alg, hints_dict["d"]["data"])
@@ -284,7 +564,7 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints):
         list_target_h = _preprocess_hint_matrix(alg, hints_dict["v"]["data"])
         list_s_last_h = _preprocess_hint_matrix(alg, hints_dict["s_last"]["data"])
         list_time = _preprocess_hint_matrix(alg, hints_dict["time"]["data"])
-        list_h = _dfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_discovery_h, 
+        list_h = _dfs_translate_reach_pred_h( neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_discovery_h, 
         list_final_h, list_s_prev_h, list_s_h, 
         list_source_h, list_target_h, list_s_last_h, list_time)
         return list_h
