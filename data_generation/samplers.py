@@ -211,8 +211,6 @@ class Sampler(abc.ABC):
         else:
           weights = np.maximum(weights, weights.T)
       mat = mat.astype(int) * weights
-      print("weights", weights)
-      print("mat", mat)
     return mat
 
   def _random_community_graph(self, nb_nodes, k=4, p=0.5, eps=0.01,
