@@ -231,7 +231,6 @@ def _translate_inputs(alg, inputs):
         algorithm = alg
         adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
         weights = np.squeeze(inputs_dict["A"]["data"])
-
         edge_set = set()
         list_edge_with_weights = []
 
