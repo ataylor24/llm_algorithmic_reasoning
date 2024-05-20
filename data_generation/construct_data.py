@@ -46,11 +46,12 @@ def _translate_source_node(source_list):
 
 def _bfs_translate_output(list_pred):
     list_out_idxs = [str(node_idx) for node_idx, pred_idx in enumerate(list_pred) if pred_idx != node_idx]
-    return f"### Reachable Nodes: {', '.join(list_out_idxs)}"# if len(list_out_idxs) > 0 else "There are no reachable nodes"
+    return f"### Reachable Nodes: [{', '.join(list_out_idxs)}]"# if len(list_out_idxs) > 0 else "There are no reachable nodes"
 
 def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h):
     dict_reach_h = {}
     reach_h_queue = []
+    neighborhood_h = {}
     visited_ = set()
 
     for level_h, (reach_h, pred_h) in enumerate(zip(list_reach_h, list_pred_h)):            
@@ -58,15 +59,17 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
         # termination condition
         if sum(reach_h) == 0 and sum(pred_h) == 0:
             continue
- 
+     
         for node_idx, (reach_f, pred_node_idx) in enumerate(zip(reach_h, pred_h)):
             
             if not pred_node_idx in dict_reach_h:
                 dict_reach_h[pred_node_idx] = set()
+                neighborhood_h[pred_node_idx] = set()
             
             if reach_f == 1:
                 if node_idx != pred_node_idx: 
-                    dict_reach_h[pred_node_idx].add((node_idx, pred_node_idx))  
+                    dict_reach_h[pred_node_idx].add((node_idx, pred_node_idx))
+                    neighborhood_h[pred_node_idx].add(node_idx)
                 if not node_idx in visited_:
                     level_h_queue.add(node_idx)
                     visited_.add(node_idx)
@@ -77,23 +80,29 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
     bfs_queue = deque(reach_h_queue[0])
     list_node_idxs = [i for i in range(len(list_reach_h[0]))]
     bfs_dequeue = set()
-        
+    
+    reachable_nodes = set()
+    
     for reach_h_subqueue in reach_h_queue:
+        current_hint = []
+        
         for reach_h in reach_h_subqueue:
             bfs_subqueue = set()
-            hints.append(f"Current Queue: {list(bfs_queue)}")
+            current_hint.append(f"Queue: {list(bfs_queue)}")
             current_source = bfs_queue.popleft()
-            hints.append(f"Pop {current_source} from queue, and consider its connections: {reach_h}")
+            current_hint.append(f"Dequeue: {current_source}\nUnvisited neighborhood of {current_source}: {list(neighborhood_h[reach_h])}")
             
             if neg_edges:
                 bfs_dequeue.add(current_source)
             
             if len(dict_reach_h[reach_h]) == 0:
                 if idx == 0:
-                    hints.append(f"Source {reach_h} has no connections, therefore we terminate.")
-                else:
-                    suffix = ", so we move the the next queue element." if len(bfs_queue) > 0 else ", and since the queue is empty, we terminate."
-                    hints.append(f"{reach_h} has no additional connections{suffix}")
+                    current_hint.append(f"Source {reach_h} has no univisited neighbors.\n Algorithm terminates.")
+                elif len(bfs_queue) <= 0:
+                    #suffix = "Move the the next queue element." if len(bfs_queue) > 0 else " Queue is empty.\n Algorithm terminates."
+                    # suffix = "" if len(bfs_queue) > 0 else "\nQueue is empty.\n Algorithm terminates."
+                    # current_hint.append(f"{reach_h} has no univisited neighbors.{suffix}")
+                    current_hint.append(f"\nQueue is empty.\n Algorithm terminates.")
                 continue
             
             #order the hints by placing the lowest node idx first
@@ -101,7 +110,8 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
             
             for node_idx, pred_node_idx in dict_reach_h[reach_h]:
                 bfs_subqueue.add(node_idx)
-                hints.append(f"{node_idx} is reachable from {pred_node_idx}.")
+                # current_hint.append(f"{node_idx} is reachable from {pred_node_idx}.")
+                reachable_nodes.add(node_idx)
             if neg_edges:
                 for node_idx in list_node_idxs:
                     if node_idx == pred_node_idx or (node_idx, pred_node_idx) in bfs_subqueue: 
@@ -110,13 +120,16 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
                         if ((node_idx, pred_node_idx) in edgelist_lookup or
                             (pred_node_idx, node_idx) in edgelist_lookup) and node_idx in bfs_dequeue:
                             # Node is reachable but has already been reached by a prior node
-                            hints.append(f"{node_idx} is reachable from {pred_node_idx}, but has been reached already.")
-                        else:
-                            hints.append(f"{node_idx} is not reachable from {pred_node_idx}.")
+                            # current_hint.append(f"{node_idx} is reachable from {pred_node_idx}, but has been reached already.")
+                            reachable_nodes.add(node_idx)
+                        # else:
+                            # current_hint.append(f"{node_idx} is not reachable from {pred_node_idx}.")
+                            
                     # No action required if node_idx is in bfs_subqueue
-
             bfs_queue.extend(sorted(list(bfs_subqueue)))
             idx += 1
+        hints.append("\n".join(current_hint))
+        hints.append(str(list(reachable_nodes)))
             
     return hints
 
@@ -143,10 +156,10 @@ def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_
     for output_format in output_formats:
         llm_data_dir = dict_llm_data_dir[output_format]
         
-        if output_format == "llama2":
-            data_utils.write_llama_format(llm_data_dir, "training", trans_training_data)
-            data_utils.write_llama_format(llm_data_dir, "validation", trans_validation_data)
-            data_utils.write_llama_format(llm_data_dir, "testing", trans_testing_data) 
+        if output_format in data_utils.OUTPUT_FORMATS:
+            data_utils.write_llama_chat_format(llm_data_dir, "training", trans_training_data)
+            data_utils.write_llama_chat_format(llm_data_dir, "validation", trans_validation_data)
+            data_utils.write_llama_chat_format(llm_data_dir, "testing", trans_testing_data) 
         else:
             raise NotImplementedError(f"Output format {output_format} has not been implemented.")
     
@@ -209,12 +222,11 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes = range(3, args.graph_sizes + 1)
+    graph_sizes = [3] #range(3, args.graph_sizes + 1)
     
     for graph_size in graph_sizes:
         unique_graphs = set()
         clrs_data_dir, dict_llm_data_dir = data_utils.resolve_output_dirs(args.output_dir, args.algorithm, args.output_formats, graph_size)
-
         training_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][0] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[0]
         evaluation_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][1] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[1]
         
@@ -240,9 +252,10 @@ def sample_data(args):
             outputs = translate_outputs(args.algorithm, train_sample.outputs)
 
             clrs_training_data[valid_train_idx] = train_sample
+            
             trans_training_data[valid_train_idx] = {
                 "inputs": inputs,
-                "hints": "\n".join(hints),
+                "hints": hints,
                 "outputs": outputs
             }
             
@@ -264,7 +277,7 @@ def sample_data(args):
                 clrs_validation_data[valid_eval_idx] = test_sample
                 trans_validation_data[valid_eval_idx] = {
                     "inputs": inputs,
-                    "hints": "\n".join(hints),
+                    "hints": hints,
                     "outputs": outputs
                 }
             else:
@@ -272,7 +285,7 @@ def sample_data(args):
                 clrs_testing_data[test_idx] = test_sample
                 trans_testing_data[test_idx] = {
                     "inputs": inputs,
-                    "hints": "\n".join(hints),
+                    "hints": hints,
                     "outputs": outputs
                 }
             
