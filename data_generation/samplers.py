@@ -191,7 +191,7 @@ class Sampler(abc.ABC):
     return self._rng.randint(0, high=chars, size=(length,))
 
   def _random_er_graph(self, nb_nodes, p=0.5, directed=False, acyclic=False,
-                       weighted=False, low=0, high=10, integer_based=True):
+                       weighted=False, low=0, high=10, integer_based=True, self_edges_weighted=False):
     """Random Erdos-Renyi graph."""
 
     mat = self._rng.binomial(1, p, size=(nb_nodes, nb_nodes))
@@ -210,7 +210,14 @@ class Sampler(abc.ABC):
           weights = np.sqrt(weights + 1e-3)  # Add epsilon to protect underflow
         else:
           weights = np.maximum(weights, weights.T)
+      
+      if not self_edges_weighted:
+        matrix_size = weights.shape[0]
+        matrix = np.ones((matrix_size, matrix_size)) - np.eye(matrix_size)
+        weights = matrix * weights
+        
       mat = mat.astype(int) * weights
+
     return mat
 
   def _random_community_graph(self, nb_nodes, k=4, p=0.5, eps=0.01,
