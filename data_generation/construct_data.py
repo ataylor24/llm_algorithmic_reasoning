@@ -53,7 +53,7 @@ def _fw_translate_hints(distance_matrix):
             for k in range(j + 1, N):  # Avoiding duplicates by iterating from j + 1
                 if current_dist_matrix[j, k] != 0:
                     edge_list.append((j, k, current_dist_matrix[j, k]))
-        hints.append(f"Updated distances: {edge_list}")
+        hints.append(f"Distances: {edge_list}")
     return hints, edge_list
 
 def _translate_dijkstra_hints(hints_dict, source):
@@ -216,7 +216,7 @@ def translate_outputs(alg, outputs, final_d=None):
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
     elif alg in ['dijkstra', 'floyd_warshall']:
-        return {"Distances": str(final_d)}
+        return f"Distances: {final_d}"
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 

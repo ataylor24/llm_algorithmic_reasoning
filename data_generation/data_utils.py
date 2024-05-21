@@ -48,7 +48,7 @@ FORMATTED_ALGORITHMS = {
     "floyd_warshall": {
         "name": "Floyd-Warshall",
         "goal": "shortest-path",
-        "instruction": "Output the final predecessor matrix"
+        "instruction": "What are the shortest path distances between all pairs of nodes?"
     }
 }
 
