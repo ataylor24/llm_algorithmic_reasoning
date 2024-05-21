@@ -54,25 +54,13 @@ def _fw_translate_hints(distance_matrix):
                 if current_dist_matrix[j, k] != 0:
                     edge_list.append((j, k, current_dist_matrix[j, k]))
         hints.append(f"Updated distances: {edge_list}")
-    return hints
+    return hints, edge_list
 
 def _translate_dijkstra_hints(hints_dict, source):
     d = hints_dict["d"]["data"]
-    pi_h = hints_dict["pi_h"]["data"]
     mark = hints_dict["mark"]["data"]
     in_queue = hints_dict["in_queue"]["data"]
     u = hints_dict["u"]["data"]
-
-    # # Function to print the variable name and its value
-    # def print_variable(name, variable):
-    #     print(f"\n{name}: {variable}\n{variable.shape}")
-
-    # # Printing each variable
-    # print_variable("d", d)
-    # print_variable("pi_h", pi_h)
-    # print_variable("mark", mark)
-    # print_variable("in_queue", in_queue)
-    # print_variable("u", u)
 
     hints = []
     N = d.shape[0]
@@ -227,11 +215,8 @@ def translate_outputs(alg, outputs, final_d=None):
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
-    elif alg == "floyd_warshall":
-        path_matrix = np.squeeze(outputs_dict["Pi"]["data"]).tolist()
-        return {"path_matrix": path_matrix}
-    elif alg == 'dijkstra':
-        return {"Distances": final_d}
+    elif alg in ['dijkstra', 'floyd_warshall']:
+        return {"Distances": str(final_d)}
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
@@ -329,7 +314,7 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            if args.algorithm == "dijkstra":
+            if args.algorithm in ["floyd_warshall", "dijkstra"]:
                 hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
 
@@ -355,7 +340,7 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            if args.algorithm == "dijkstra":
+            if args.algorithm in ["floyd_warshall", "dijkstra"]:
                 hints, d = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], test_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, test_sample.outputs, final_d)
             else:
