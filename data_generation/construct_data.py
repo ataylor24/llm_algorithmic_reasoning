@@ -56,6 +56,44 @@ def _fw_translate_hints(distance_matrix):
         hints.append(f"Updated distances: {edge_list}")
     return hints
 
+def _translate_dijkstra_hints(hints_dict, source):
+    d = hints_dict["d"]["data"]
+    pi_h = hints_dict["pi_h"]["data"]
+    mark = hints_dict["mark"]["data"]
+    in_queue = hints_dict["in_queue"]["data"]
+    u = hints_dict["u"]["data"]
+
+    # # Function to print the variable name and its value
+    # def print_variable(name, variable):
+    #     print(f"\n{name}: {variable}\n{variable.shape}")
+
+    # # Printing each variable
+    # print_variable("d", d)
+    # print_variable("pi_h", pi_h)
+    # print_variable("mark", mark)
+    # print_variable("in_queue", in_queue)
+    # print_variable("u", u)
+
+    hints = []
+    N = d.shape[0]
+    nodes = d.shape[2]
+
+    for i in range(N):
+        priority_queue = [(j, d[i, 0, j]) for j in range(nodes) if in_queue[i, 0, j] == 1]
+        priority_queue = sorted(priority_queue, key=lambda x: x[1] if x[1] != 0 else float('inf'))
+        unvisited_nodes = [j for j in range(nodes) if mark[i, 0, j] == 0]
+        visited_nodes = [j for j in range(nodes) if mark[i, 0, j] == 1]
+
+        hints.append(f"Step {i}:\nPriority Queue: {priority_queue} \nUnvisited Nodes: {unvisited_nodes}\nVisited Nodes: {visited_nodes}")
+
+        if not (mark[i, 0].any() or in_queue[i, 0].any() or u[i, 0].any()):
+            hints.append(f"\nQueue is empty.\n Algorithm terminates.")
+            break
+        else:
+            distances = [(source, j, d[i, 0, j]) for j in range(nodes) if d[i, 0, j] != 0]
+            hints.append(f"Distances: {distances}")
+    return hints, distances
+
 def _translate_source_node(source_list):
     return int(np.nonzero(source_list.flatten())[0][0])
 
@@ -178,7 +216,7 @@ def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_
         else:
             raise NotImplementedError(f"Output format {output_format} has not been implemented.")
     
-def translate_outputs(alg, outputs):
+def translate_outputs(alg, outputs, final_d=None):
     outputs_dict = _datapoints_list_to_dict(outputs)
 
     if alg in ["bfs", "dfs"]:
@@ -192,11 +230,13 @@ def translate_outputs(alg, outputs):
     elif alg == "floyd_warshall":
         path_matrix = np.squeeze(outputs_dict["Pi"]["data"]).tolist()
         return {"path_matrix": path_matrix}
+    elif alg == 'dijkstra':
+        return {"Distances": final_d}
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
 
-def translate_hints(alg, neg_edges, edgelist_lookup, hints):
+def translate_hints(alg, neg_edges, edgelist_lookup, source, hints):
     hints_dict = _datapoints_list_to_dict(hints)
 
     if alg in ["bfs", "dfs"]:
@@ -211,6 +251,8 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints):
     elif alg == "floyd_warshall":
         dist_matrix = hints_dict["D"]["data"]
         return _fw_translate_hints(dist_matrix)
+    elif alg == "dijkstra":
+        return _translate_dijkstra_hints(hints_dict, source)
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
@@ -227,7 +269,7 @@ def _translate_inputs(alg, inputs):
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
-    elif alg == "floyd_warshall":
+    elif alg in ["floyd_warshall", "dijkstra"]:
         algorithm = alg
         adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
         weights = np.squeeze(inputs_dict["A"]["data"])
@@ -243,7 +285,8 @@ def _translate_inputs(alg, inputs):
                         list_edge_with_weights.append(edge)
                         edge_set.add(edge)
 
-        return algorithm, list_edge_with_weights, ""
+        source = "" if alg == "floyd_warshall" else _translate_source_node(inputs_dict["s"]["data"])
+        return algorithm, list_edge_with_weights, source
     else:
         raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
 
@@ -286,8 +329,13 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints)
-            outputs = translate_outputs(args.algorithm, train_sample.outputs)
+            if args.algorithm == "dijkstra":
+                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], train_sample.features.hints)
+                outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
+
+            else:
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], train_sample.features.hints)
+                outputs = translate_outputs(args.algorithm, train_sample.outputs)
 
             clrs_training_data[valid_train_idx] = train_sample
             
@@ -307,8 +355,12 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), test_sample.features.hints)
-            outputs = translate_outputs(args.algorithm, test_sample.outputs)
+            if args.algorithm == "dijkstra":
+                hints, d = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], test_sample.features.hints)
+                outputs = translate_outputs(args.algorithm, test_sample.outputs, final_d)
+            else:
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], test_sample.features.hints)
+                outputs = translate_outputs(args.algorithm, test_sample.outputs)
 
             if valid_eval_idx < evaluation_instances // 2:
                 clrs_validation_data[valid_eval_idx] = test_sample
