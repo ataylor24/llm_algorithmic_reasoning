@@ -10,4 +10,4 @@ def load_data(data_format, filepath):
     else:
         raise NotImplementedError(f"Handling for data format {data_format} not been implemented.")
     
-load_data("json", "/local2/ataylor2/algorithmic_reasoning/bfs/llm_data/llama2/no_hints/training.json")
+load_data("json", "/Users/vishalyathish/Documents/ScAI_Research/dataset/bfs/llm_data/llama2/no_hints/training.json")

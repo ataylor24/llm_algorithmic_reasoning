@@ -9,21 +9,59 @@ import data_utils
 def _iterate_sampler(sampler, batch_size):
         while True:
             yield sampler.next(batch_size)
-            
-def _preprocess_hint_matrix(alg, matrix_h):
-    ''' For graph-based approaches (ex. BFS), the hint matrices are actually 2D lists.
-        The row index position implicitly refers to the node in question, and the
-        value at the index depends on the hint type. '''
-    if alg in ["bfs", "dfs"]:
+
+def _translate_source_node(source_list):
+    return int(np.nonzero(source_list.flatten())[0][0])
+
+def _datapoint_to_dict(dp):
+    return {"name":dp.name,
+            "location":dp.location,
+            "data":dp.data}
+def _datapoints_list_to_dict(dp_list):
+    dp_dict = {}
+    for dp in dp_list:
+        dp_dict[dp.name] = _datapoint_to_dict(dp)
+    return dp_dict
+
+def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data):
+    #Writing CLRS data
+    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "training" + ".pkl"), clrs_training_data)
+    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "validation" + ".pkl"), clrs_validation_data)
+    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "testing" + ".pkl"), clrs_testing_data)
+    
+    #Writing LMM data
+    for output_format in output_formats:
+        llm_data_dir = dict_llm_data_dir[output_format]
+        
+        if output_format == "llama2":
+            data_utils.write_llama_format(llm_data_dir, "training", trans_training_data)
+            data_utils.write_llama_format(llm_data_dir, "validation", trans_validation_data)
+            data_utils.write_llama_format(llm_data_dir, "testing", trans_testing_data) 
+        else:
+            raise NotImplementedError(f"Output format {output_format} has not been implemented.")
+    
+def _bfs_translate_output(list_pred):
+    list_out_idxs = [str(node_idx) for node_idx, pred_idx in enumerate(list_pred) if pred_idx != node_idx]
+    return f"### Reachable Nodes: {', '.join(list_out_idxs)}" # if len(list_out_idxs) > 0 else "There are no reachable nodes"
+
+def translate_outputs(alg, outputs):
+    outputs_dict = _datapoints_list_to_dict(outputs)
+    if alg in ["bfs"]:
         # unweighted graph algorithms
-        list_flat_h = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()]
-        return list_flat_h
+        list_out_preds = outputs_dict["pi"]["data"][0]
+        list_out = _bfs_translate_output(list_out_preds)
+        return list_out
+    elif alg in ["dfs"]:
+        list_out_preds = outputs_dict["pi"]["data"][0]
+        #print (list_out_preds)
+        list_out = _bfs_translate_output(list_out_preds)
+        return list_out
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
-        
+
 def _translate_unweighted_graph(adj_matrix):
     adj_matrix = adj_matrix.squeeze()
     rows, cols = adj_matrix.shape
@@ -40,13 +78,49 @@ def _translate_unweighted_graph(adj_matrix):
                 edge_list.append((i, j))
 
     return edge_list
+def _translate_inputs(alg, inputs):
+    inputs_dict = _datapoints_list_to_dict(inputs)
+    # print("------------INPUTS------------")
+    # print(inputs_dict)
+    if alg in ["bfs"]:
+        # unweighted graph algorithms
+        algorithm = alg
+        list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
+        source = _translate_source_node(inputs_dict["s"]["data"])
+        return algorithm, list_edge, source
+    if alg in ["dfs"]:
+        # unweighted graph algorithms
+        algorithm = alg
+        list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
+        #source = _translate_source_node(inputs_dict["A"]["data"])
+        return algorithm, list_edge, 1 #Junk source node to fix formatting/parsing issues
+    elif alg in ["dka", "bfd"]:
+        #potentially weighted graph algorithms
+        raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
+    else:
+        raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
 
-def _translate_source_node(source_list):
-    return int(np.nonzero(source_list.flatten())[0][0])
+def hash_edgelist(edgelist):
+    canonicalEdges = sorted([str(sorted(edge)) for edge in edgelist])  # Canonical form and sort
+    return hash(",".join(canonicalEdges))  # Convert to unique representation
 
-def _bfs_translate_output(list_pred):
-    list_out_idxs = [str(node_idx) for node_idx, pred_idx in enumerate(list_pred) if pred_idx != node_idx]
-    return f"### Reachable Nodes: {', '.join(list_out_idxs)}"# if len(list_out_idxs) > 0 else "There are no reachable nodes"
+def _preprocess_hint_matrix(alg, matrix_h):
+    ''' For graph-based approaches (ex. BFS), the hint matrices are actually 2D lists.
+        The row index position implicitly refers to the node in question, and the
+        value at the index depends on the hint type. '''
+    if alg in ["bfs"]:
+        # unweighted graph algorithms
+        list_flat_h = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()]
+        return list_flat_h
+    if alg in ["dfs"]: 
+        list_flat_h = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()]
+        return list_flat_h
+    elif alg in ["dka", "bfd"]:
+        #potentially weighted graph algorithms
+        raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
+    else:
+        raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
+
 
 def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h):
     dict_reach_h = {}
@@ -120,59 +194,112 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
             
     return hints
 
-def _datapoint_to_dict(dp):
-    return {"name":dp.name,
-            "location":dp.location,
-            "data":dp.data}
+"""
+The majority of the work for translation, parsing the hint lists for each attribute into natural language instructions.
 
-def _datapoints_list_to_dict(dp_list):
-    dp_dict = {}
-    for dp in dp_list:
-        dp_dict[dp.name] = _datapoint_to_dict(dp)
-    return dp_dict
+--- Desired Structure for DFS Translations: ---
+System Prompt:...
 
-def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data):
+Instruction: Please perform the Depth-first Search algorithm for reachability on this graph: Edgelist: [...], Source Node: ... . Perform the algorithm step by step.
+Current Stack: [...]
+Pop from Stack: ...
+Neighborhood of ...: [...]
+List all known reachable nodes.
+
+Response: Reachable Nodes: [...]
+
+"""
+def get_reachable_nodes (node, edgelist, visited_nodes): 
+    reachable_nodes = []
+    for e in edgelist: 
+        if e[0] == node and e[1] not in visited_nodes: 
+            reachable_nodes.append(e[1])
+        elif e[1] == node and e[0] not in visited_nodes:
+            reachable_nodes.append(e[0])
+    return sorted(reachable_nodes)
+
+def _dfs_translate_list_h (neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_source_h):
+    reach_stack = []
+    reach_stack_prev = [-1]
+
+    hints = []
     
-    #Writing CLRS data
-    
-    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "training" + ".pkl"), clrs_training_data)
-    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "validation" + ".pkl"), clrs_validation_data)
-    data_utils.write_clrs_format(os.path.join(clrs_data_dir, "testing" + ".pkl"), clrs_testing_data)
-    
-    #Writing LMM data
-    for output_format in output_formats:
-        llm_data_dir = dict_llm_data_dir[output_format]
-        
-        if output_format == "llama2":
-            data_utils.write_llama_format(llm_data_dir, "training", trans_training_data)
-            data_utils.write_llama_format(llm_data_dir, "validation", trans_validation_data)
-            data_utils.write_llama_format(llm_data_dir, "testing", trans_testing_data) 
-        else:
-            raise NotImplementedError(f"Output format {output_format} has not been implemented.")
-    
-def translate_outputs(alg, outputs):
-    outputs_dict = _datapoints_list_to_dict(outputs)
+    node_states = [0]*len(list_color_h[0])
+    visited = []
+    source_state = -1
 
-    if alg in ["bfs", "dfs"]:
-        # unweighted graph algorithms
-        list_out_preds = outputs_dict["pi"]["data"][0]
-        list_out = _bfs_translate_output(list_out_preds)
-        return list_out
-    elif alg in ["dka", "bfd"]:
-        #potentially weighted graph algorithms
-        raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
-    else:
-        raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
+    for i in range (len(list_color_h)):
+        c = list_color_h[i]
 
+        for j in range (len(c)): 
+                node_color = c[j]
+                if (node_color == [0,1,0] and node_states[j] != 1): #if a node is visited for the first time
+                    if (list_source_h[i].index(1.0) != source_state): 
+                        hints.append(f"Push Source {j} to stack and consider its connections.")
+                        source_state = list_source_h[i].index(1.0)
+                    else:
+                        hints.append(f"Push Node {j} to stack and consider its connections.")
+                    reach_stack.append(j)
+                    visited.append(j)
+                    node_states[j] = 1
 
+                    hints.append(f"Reachable Nodes from {j}: {get_reachable_nodes(j, edgelist_lookup, visited)}")
+
+                elif (node_color == [0,0,1] and node_states[j] != 2):
+                    hints.append(f"Node {j} has no more connections. Pop from Stack.")
+                    reach_stack.pop()
+                    node_states[j] = 2
+
+        stack_update = f"Current Stack: {reach_stack}"
+        hints.append(stack_update)
+        if len(hints) >=2 and hints[-1] == hints[-2]: 
+            hints.pop()
+
+        # if (list_source_h[0].index(1.0) != source_state): 
+        #     source_state = list_source_h[0].index(1.0)
+        #     hints.append(f"Push Source {source_state} to stack and consider its connections.")
+        #     reach_stack.append(source_state)
+        #     #hints.append(f"Current Stack: {list(reach_stack)}")
+
+    # print ("--SOURCES--")
+    # for i in range(len(list_source_h)):
+    #     
+    #     print(source_state)
+
+    return hints
+
+"""
+Parses the hint dictionary into relevant attribute lists, and
+passes to the translation function for each algorithm. 
+"""
 def translate_hints(alg, neg_edges, edgelist_lookup, hints):
     hints_dict = _datapoints_list_to_dict(hints)
+    #print("------------HINTS------------")
+    #print(hints_dict['s'])
+    # print(hints_dict)
 
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs"]:
         # unweighted graph algorithms
         list_reach_h = _preprocess_hint_matrix(alg, hints_dict["reach_h"]["data"])
         list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
         list_h = _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h)
+        return list_h
+    elif alg in ["dfs"]:
+        """
+        Different information stored in the hint and input matrices for BFS and DFS.
+        BFS: {'reach_h', 'pi_h'}
+        DFS: {'pi_h', 'color', 'd', 'f', 's_prev', 's', 'u', 'v', 's_last', 'time'}
+        
+        Alex did a walkthrough on Thursday on each of these attributes.
+        pi_h: Immediate parent? Predecessors? 
+        color: Indicates status of each node at every iteration! 
+        s: Source Node
+        """
+        #list_reach_h = _preprocess_hint_matrix(alg, hints_dict["reach_h"]["data"])
+        list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
+        list_color_h = _preprocess_hint_matrix(alg, hints_dict["color"]["data"])
+        list_source_h = _preprocess_hint_matrix(alg, hints_dict["s"]["data"])
+        list_h = _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_source_h)
         return list_h
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
@@ -181,25 +308,9 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints):
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
 
-def _translate_inputs(alg, inputs):
-    inputs_dict = _datapoints_list_to_dict(inputs)
-
-    if alg in ["bfs", "dfs"]:
-        # unweighted graph algorithms
-        algorithm = alg
-        list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
-        source = _translate_source_node(inputs_dict["s"]["data"])
-        return algorithm, list_edge, source
-    elif alg in ["dka", "bfd"]:
-        #potentially weighted graph algorithms
-        raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
-    else:
-        raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
-
-def hash_edgelist(edgelist):
-    canonicalEdges = sorted([str(sorted(edge)) for edge in edgelist])  # Canonical form and sort
-    return hash(",".join(canonicalEdges))  # Convert to unique representation
-
+"""
+Calls all of the other supporting translation functions and writes the data to the output files.
+"""
 def sample_data(args):
     clrs_training_data = {}
     clrs_validation_data = {}
@@ -230,13 +341,28 @@ def sample_data(args):
         while valid_train_idx < training_instances:
             train_sample = next(data_smp_iter)
 
+            """
+            TRANSLATION ISSUE #1.
+            Source node is not in inputs, is in the hints matrix.
+            Made this adjustment, and _translate_inputs appears to work as needed. 
+            """
             inputs = _translate_inputs(args.algorithm, train_sample.features.inputs)
+            # print("-- INPUTS --")
+            # print(inputs)
             
             edgelist_hash = hash_edgelist(inputs[1])
             if edgelist_hash in unique_graphs:
                 continue
             
-            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints)
+            """
+            TRANSLATION ISSUE #2. 
+
+            """
+            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
+            
+            """
+            TRANSLATION ISSUE #3. 
+            """
             outputs = translate_outputs(args.algorithm, train_sample.outputs)
 
             clrs_training_data[valid_train_idx] = train_sample
@@ -257,7 +383,7 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), test_sample.features.hints)
+            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), test_sample.features.hints)
             outputs = translate_outputs(args.algorithm, test_sample.outputs)
 
             if valid_eval_idx < evaluation_instances // 2:
@@ -282,6 +408,10 @@ def sample_data(args):
         
         _write_data(args.output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data)
     
+
+"""
+Parses arguments for construct_data from the command line
+"""
 def main():
     args = data_utils.parse_args()
     sample_data(args)

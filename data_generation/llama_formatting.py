@@ -29,7 +29,7 @@ def apply_llama_format(dataset_path, algorithm, hint_level):
 
 def main():
     algorithm = "bfs"
-    data_path = f"/local2/ataylor2/algorithmic_reasoning/{algorithm}/llm_data"
+    data_path = f"/Users/vishalyathish/Documents/ScAI_Research/dataset/{algorithm}/llm_data"
     out_path = resolve_output_dirs(data_path)
     
     ref_datasets = []
