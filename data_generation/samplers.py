@@ -482,8 +482,8 @@ class BellmanFordSampler(Sampler):
       self,
       length: int,
       p: Tuple[float, ...] = (0.5,),
-      low: float = 0.,
-      high: float = 10.,
+      low: float = 0,
+      high: float = 10,
   ):
     graph = self._random_er_graph(
         nb_nodes=length,
@@ -526,8 +526,8 @@ class FloydWarshallSampler(Sampler):
       self,
       length: int,
       p: Tuple[float, ...] = (0.5,),
-      low: float = 0.,
-      high: float = 10.,
+      low: float = 0,
+      high: float = 10,
   ):
     graph = self._random_er_graph(
         nb_nodes=length,
