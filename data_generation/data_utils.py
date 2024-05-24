@@ -35,10 +35,10 @@ FORMATTED_ALGORITHMS = {
         "goal": "reachability",
         "instruction": ""
             },
-    "dka": {
+    "dijkstra": {
         "name": "Dijkstra's",
         "goal": "shortest-path",
-        "instruction": ""
+        "instruction": "What are the distances between each pair of nodes?"
         },
     "bfd": {
         "name": "Bellman-Ford",
@@ -48,7 +48,7 @@ FORMATTED_ALGORITHMS = {
     "floyd_warshall": {
         "name": "Floyd-Warshall",
         "goal": "shortest-path",
-        "instruction": "Output the final predecessor matrix"
+        "instruction": "What are the shortest path distances between all pairs of nodes?"
     }
 }
 
@@ -193,8 +193,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Jointly constructs CLRS data and sequence-to-sequence data.")
 
     # Add arguments
-    parser.add_argument("algorithm", type=str, choices=['bfs', 'dfs', 'dka', 'floyd_warshall'], 
-                        help="Algorithm must be one of: 'bfs', 'dfs','dka', or 'bfd'.")
+    parser.add_argument("algorithm", type=str, choices=['bfs', 'dfs', 'dijkstra', 'floyd_warshall'], 
+                        help="Algorithm must be one of: 'bfs', 'dfs', 'dijkstra', or 'floyd_warshall'.")
     parser.add_argument("-training_style", "--training_style", type=str, default="QA",choices=['QA', 'AoT'], #CoT, ToT, GoT
                         help="Algorithm must be one of: 'bfs', 'dfs','dka', or 'bfd'.")
     parser.add_argument("-graph_sizes", "--graph_sizes", type=int, default=10, help="Number of nodes present in the graphs generated. Default behavior sets num_samples to the number of training datapoints.")
