@@ -14,10 +14,6 @@ YML_OUTFILE = {
             "data_files": "training.json"
         },
         {
-            "config_name": "validation",
-            "data_files": "validation.json"
-        },
-        {
             "config_name": "test",
             "data_files": "testing.json"
         }
@@ -76,53 +72,66 @@ def write_clrs_format(outfile, data):
 def write_data_config_readme(outfile):
     dump_yml(outfile, YML_OUTFILE)
     
-def write_llama_chat_format(output_dir, data_sect, data):
-    for reasoning_strategy in REASONING_STRATEGIES:
-        llama_data = {}
-            
-        for idx in data:
-            llama_data_inst = []
-            algorithm = data[idx]["inputs"][0]
-            edge_list = data[idx]["inputs"][1]
-            source_node = data[idx]["inputs"][2]
-            
-            for i, execution_step in enumerate(data[idx]["hints"]):
-                if i == 0:
-                    role = "system"
-                elif i % 2 == 1:
-                    role = "user"
-                else:
-                    role = "assistant"
-                    
-                hints = execution_step + "\n" if (reasoning_strategy != "IO" and data_sect != "testing") or i % 2 == 1 else ""
+def write_llama_chat_format(reasoning_strategy, data_sect, data):
+    
 
-                if i == 0:
-                    if source_node == "":
-                        content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; \n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
-                    else:
-                        content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
-                elif i + 1 >= len(data[idx]["hints"]):
-                    content =  data[idx]["outputs"]
-                elif i % 2 == 1:
-                    content =f"{hints}"
+    llama_data = []
+        
+    for idx in data:
+        llama_data_inst = []
+        algorithm = data[idx]["inputs"][0]
+        edge_list = data[idx]["inputs"][1]
+        source_node = data[idx]["inputs"][2]
+        
+        init_prompt = None
+        
+        for i, execution_step in enumerate(data[idx]["hints"]):
+            if i == 0:
+                role = "system"
+            elif i % 2 == 1:
+                role = "assistant"
+            else:
+                role = "user"
+                
+            hints = execution_step + "\n" if (reasoning_strategy != "IO" and data_sect != "evaluation") or i % 2 == 1 else ""
+
+            if i == 0:
+                if source_node == "":
+                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; \n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
                 else:
-                    content =f"{hints}{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
-                    
-                llama_data_inst.append({
-                    "role": role,
-                    "content": content,
+                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                init_prompt = content
+            elif i + 1 >= len(data[idx]["hints"]):
+                content =  data[idx]["outputs"]
+            elif i % 2 == 1:
+                content =f"{hints}"
+            else:
+                content =f"{hints}{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                
+            llama_data_inst.append({
+                "role": role,
+                "content": content,
+            })
+                
+        # llama_data.append(llama_data_inst) 
+        llama_data.append({
+                    'prompt': init_prompt, 
+                    'chosen': llama_data_inst,
+                    'rejected': {} if reasoning_strategy in ["ToT", "GoT"] else None,
+                    'messages': llama_data_inst,
+                    'score_chosen': 1,
+                    'score_rejected': 1
                 })
 
-            # llama_data.append(llama_data_inst) 
-            llama_data[idx] = llama_data_inst
-
-        outfile = os.path.join(os.path.join(output_dir, reasoning_strategy), data_sect)
+        # outfile = os.path.join(os.path.join(output_dir, reasoning_strategy), data_sect)
         
-        out_yml = os.path.join(os.path.join(output_dir, reasoning_strategy), "README.md")
+        # out_yml = os.path.join(os.path.join(output_dir, reasoning_strategy), "README.md")
         
-        write_data_config_readme(out_yml)
+        # write_data_config_readme(out_yml)
         
-        write_json(outfile + ".json", llama_data)
+        # write_json(outfile + ".json", llama_data)
+        
+    return llama_data
 
 def write_llama_format(output_dir, data_sect, data):
     for hint_level in REASONING_STRATEGIES:

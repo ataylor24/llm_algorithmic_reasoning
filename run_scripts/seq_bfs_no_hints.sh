@@ -2,6 +2,7 @@
 
 # Set environment variable for CUDA
 export CUDA_VISIBLE_DEVICES=1
+wandb online
 
 # Loop through graph sizes from 3 to 10 (inclusive)
 for graph_size in {3..10}

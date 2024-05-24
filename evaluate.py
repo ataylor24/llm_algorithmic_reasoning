@@ -82,11 +82,12 @@ def list_to_indicator(input_list, graph_size):
     
     return indicator_list
 
-def evaluate(output_path, graph_size):
+def evaluate_(output_path, graph_size):
     
     results = train_utils.load_json(output_path)
     # INPUT_PATTERN = "\[INST\](.*?)\[/INST\]"
-    pattern = r"Reachable nodes:\s*(\[.*?\])"
+    gold_pattern = r"Reachable nodes:\s*(\[.*?\])"
+    semi_gold_pattern = r"\s*(\[.*?\])"
     
     accuracy = []
     avg_f1 = []
@@ -97,8 +98,8 @@ def evaluate(output_path, graph_size):
         print("pred_output", pred_output)
     
         # Extract lists using regex, ignoring case
-        pred_extracted = re.search(pattern, pred_output, re.IGNORECASE)
-        gold_extracted = re.search(pattern, gold_output, re.IGNORECASE)
+        pred_extracted = re.search(gold_pattern, pred_output, re.IGNORECASE)
+        gold_extracted = re.search(gold_pattern, gold_output, re.IGNORECASE)
         
         pred = unpack_literal(pred_extracted.group(1)) if pred_extracted != None else None
         gold = unpack_literal(gold_extracted.group(1))
@@ -129,9 +130,97 @@ def evaluate(output_path, graph_size):
         "avg_f1_score": sum(avg_f1)/len(avg_f1),
         "f1_score": f1_score(np.array(f1[0]), np.array(f1[1]), average="micro"),
         "f1_confusion_matrix": confusion_matrix(np.array(f1[0]), np.array(f1[1]))
-        # "partial_match_accuracy_score": accuracy_score(np.array(partial_match_gold_scores), np.array(partial_match_pred_scores)),
-        # "partial_match_f1_score": f1_score(np.array(partial_match_gold_scores), np.array(partial_match_pred_scores)),
     }, results
+
+def evaluate(output_path, graph_size):
+    import json
+
+    results_json = train_utils.load_json(output_path)
+    gold_output_pattern = r"Reachable Nodes:\s*(\[.*?\])"
+    semi_gold_output_pattern = r"\s*(\[.*?\])"
+    
+    results = []
+    accuracy = []
+    partial_accuracy = []
+    avg_f1 = []
+    avg_partial_f1 = []
+    f1 = [[], []]
+    partial_f1 = [[], []]
+
+    for i, result_dict in enumerate(results_json):
+        
+        if i == 0:
+            continue
+        
+        gold_output = result_dict["gold_output"]
+        pred_output = result_dict["pred_output"]
+        
+        print(gold_output)
+        print(pred_output)
+        
+        gold_extracted = re.search(gold_output_pattern, gold_output, re.IGNORECASE)
+        pred_extracted = re.search(gold_output_pattern, pred_output, re.IGNORECASE)
+        
+        partial_gold_extracted = re.search(semi_gold_output_pattern, gold_output, re.IGNORECASE)
+        partial_pred_extracted = re.search(semi_gold_output_pattern, pred_output, re.IGNORECASE)
+        
+        pred = train_utils.unpack_literal(pred_extracted.group(1)) if pred_extracted != None else None
+        gold = train_utils.unpack_literal(gold_extracted.group(1))
+        
+        partial_pred = train_utils.unpack_literal(partial_pred_extracted.group(1)) if partial_pred_extracted != None else None
+        partial_gold = train_utils.unpack_literal(partial_gold_extracted.group(1))
+        
+        if pred != None:
+            pred_f1 = train_utils.list_to_indicator(pred, graph_size)  
+            
+        else:
+            pred_f1 = [2] * graph_size
+            
+        if partial_pred != None:
+            partial_pred_f1 = train_utils.list_to_indicator(partial_pred, graph_size)  
+            
+        else:
+            partial_pred_f1 = [2] * graph_size
+            
+        gold_f1 = train_utils.list_to_indicator(gold, graph_size)
+        partial_gold_f1 = train_utils.list_to_indicator(partial_gold, graph_size)
+        
+        print(pred_output, gold_output)
+        
+        accuracy.append(int(pred == gold))
+        avg_f1.append(f1_score(np.array(gold_f1), np.array(pred_f1), average="micro"))
+        f1[0].extend(gold_f1)
+        f1[1].extend(pred_f1)
+        
+        partial_accuracy.append(int(partial_pred == partial_gold))
+        avg_partial_f1.append(f1_score(np.array(partial_gold_f1), np.array(partial_pred_f1), average="micro"))
+        partial_f1[0].extend(partial_gold_f1)
+        partial_f1[1].extend(partial_pred_f1)
+
+                
+        results.append({
+            "gold_output": gold_output,
+            "pred_output": pred_output,
+            "accuracy (Exact Match)": gold == pred,
+            "f1 (Exact Match)": f1_score(np.array(gold_f1), np.array(pred_f1), average="micro"),
+            "accuracy (List Only)": partial_pred == partial_gold,
+            "f1 (List Only)": f1_score(np.array(partial_gold_f1), np.array(partial_pred_f1), average="micro"),
+            })
+    
+    print(partial_f1)
+    
+    metrics_dict = {
+        "accuracy_score": sum(accuracy)/len(accuracy),
+        "avg_f1_score": sum(avg_f1)/len(avg_f1),
+        "f1_confusion_matrix": confusion_matrix(np.array(f1[0]), np.array(f1[1])).tolist(),
+        "partial_accuracy_score": sum(partial_accuracy)/len(partial_accuracy),
+        "partial_avg_f1_score": sum(avg_partial_f1)/len(avg_partial_f1),
+        "partial_f1_confusion_matrix": confusion_matrix(np.array(partial_f1[0]), np.array(partial_f1[1])).tolist()
+    }
+    
+    results.insert(0, metrics_dict)
+    
+    return metrics_dict, results
 
 def main(outfile_path, graph_size):
     

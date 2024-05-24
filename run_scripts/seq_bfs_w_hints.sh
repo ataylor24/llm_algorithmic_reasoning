@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # Set environment variable for CUDA
-export CUDA_VISIBLE_DEVICES=2
+export CUDA_VISIBLE_DEVICES=4
+wandb online
 
 # Loop through graph sizes from 3 to 10 (inclusive)
-for graph_size in {3..10}
+for graph_size in {6..10}
 do
     echo "Starting job for graph size: $graph_size"
 
