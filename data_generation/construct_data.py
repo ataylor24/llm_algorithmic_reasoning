@@ -5,6 +5,7 @@ from collections import deque
 import json
 import dill
 import data_utils
+from datasets import Dataset, DatasetDict
        
 def _iterate_sampler(sampler, batch_size):
         while True:
@@ -87,7 +88,7 @@ def _translate_source_node(source_list):
 
 def _bfs_translate_output(list_pred):
     list_out_idxs = [str(node_idx) for node_idx, pred_idx in enumerate(list_pred) if pred_idx != node_idx]
-    return f"### Reachable Nodes: [{', '.join(list_out_idxs)}]"# if len(list_out_idxs) > 0 else "There are no reachable nodes"
+    return f"Reachable Nodes: [{', '.join(list_out_idxs)}]"# if len(list_out_idxs) > 0 else "There are no reachable nodes"
 
 def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h):
     dict_reach_h = {}
@@ -197,10 +198,16 @@ def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_
     for output_format in output_formats:
         llm_data_dir = dict_llm_data_dir[output_format]
         
-        if output_format in data_utils.OUTPUT_FORMATS:
-            data_utils.write_llama_chat_format(llm_data_dir, "training", trans_training_data)
-            data_utils.write_llama_chat_format(llm_data_dir, "validation", trans_validation_data)
-            data_utils.write_llama_chat_format(llm_data_dir, "testing", trans_testing_data) 
+        if output_format in data_utils.OUTPUT_FORMATS:            
+            for reasoning_strategy in data_utils.REASONING_STRATEGIES:
+                dataset = DatasetDict({
+                    "train": Dataset.from_list(data_utils.write_llama_chat_format(reasoning_strategy, "training", trans_training_data)),
+                    "test": Dataset.from_list(data_utils.write_llama_chat_format(reasoning_strategy, "evaluation", trans_validation_data)),
+                    "evaluation": Dataset.from_list(data_utils.write_llama_chat_format(reasoning_strategy, "evaluation", trans_testing_data))
+                })
+                
+                outfile = os.path.join(os.path.join(llm_data_dir, reasoning_strategy))
+                dataset.save_to_disk(outfile)
         else:
             raise NotImplementedError(f"Output format {output_format} has not been implemented.")
     
@@ -288,7 +295,7 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes = range(3, args.graph_sizes + 1)
+    graph_sizes = [3] #range(3, args.graph_sizes + 1)
     
     for graph_size in graph_sizes:
         unique_graphs = set()
@@ -297,17 +304,15 @@ def sample_data(args):
         evaluation_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][1] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[1]
         
         data_smp, spec = smp.build_sampler(args.algorithm, num_samples=-1, length=graph_size, seed=args.seed)
-        # test_smp, spec = smp.build_sampler(args.algorithm, num_samples=evaluation_instances, length=graph_size, seed=args.seed)
     
         data_smp_iter = _iterate_sampler(data_smp, batch_size=1)
-        # test_iter = _iterate_sampler(test_smp, batch_size=1)
         
         valid_train_idx = 0
         valid_eval_idx = 0
         
         while valid_train_idx < training_instances:
             train_sample = next(data_smp_iter)
-
+            
             inputs = _translate_inputs(args.algorithm, train_sample.features.inputs)
             
             edgelist_hash = hash_edgelist(inputs[1])
@@ -315,13 +320,15 @@ def sample_data(args):
                 continue
             
             if args.algorithm in ["floyd_warshall", "dijkstra"]:
-                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], train_sample.features.hints)
+                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
-
+            elif args.algorithm in ["bfs"]:
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
+                outputs = translate_outputs(args.algorithm, train_sample.outputs)
             else:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
-
+            
             clrs_training_data[valid_train_idx] = train_sample
             
             trans_training_data[valid_train_idx] = {
@@ -340,12 +347,8 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            if args.algorithm in ["floyd_warshall", "dijkstra"]:
-                hints, d = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], test_sample.features.hints)
-                outputs = translate_outputs(args.algorithm, test_sample.outputs, final_d)
-            else:
-                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], test_sample.features.hints)
-                outputs = translate_outputs(args.algorithm, test_sample.outputs)
+            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), test_sample.features.hints)
+            outputs = translate_outputs(args.algorithm, test_sample.outputs)
 
             if valid_eval_idx < evaluation_instances // 2:
                 clrs_validation_data[valid_eval_idx] = test_sample
