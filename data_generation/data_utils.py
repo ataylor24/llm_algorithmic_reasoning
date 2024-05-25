@@ -45,6 +45,11 @@ FORMATTED_ALGORITHMS = {
         "name": "Floyd-Warshall",
         "goal": "shortest-path",
         "instruction": "What are the shortest path distances between all pairs of nodes?"
+    },
+    "mst_prim": {
+        "name": "mst_prim",
+        "goal": "minimum spanning tree",
+        "instruction": "What is the edgelist of the minimum spanning tree?"
     }
 }
 
@@ -202,15 +207,15 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Jointly constructs CLRS data and sequence-to-sequence data.")
 
     # Add arguments
-    parser.add_argument("algorithm", type=str, choices=['bfs', 'dfs', 'dijkstra', 'floyd_warshall'], 
-                        help="Algorithm must be one of: 'bfs', 'dfs', 'dijkstra', or 'floyd_warshall'.")
+    parser.add_argument("algorithm", type=str, choices=['bfs', 'dfs', 'dijkstra', 'floyd_warshall', 'mst_prim'], 
+                        help="Algorithm must be one of: 'bfs', 'dfs', 'dijkstra', 'floyd_warshall', or 'mst_prim.")
     parser.add_argument("-training_style", "--training_style", type=str, default="QA",choices=['QA', 'AoT'], #CoT, ToT, GoT
                         help="Algorithm must be one of: 'bfs', 'dfs','dka', or 'bfd'.")
     parser.add_argument("-graph_sizes", "--graph_sizes", type=int, default=10, help="Number of nodes present in the graphs generated. Default behavior sets num_samples to the number of training datapoints.")
     parser.add_argument("-num_samples", "--num_samples", type=int, default=-1, help="Number of data samples to generate.")
     parser.add_argument("-neg_edges", "--neg_edges", type=bool, default=True, help="Include negative edges, ex. '0 is not reachable from 1'.")
     parser.add_argument("-seed", "--seed", type=int, default=100898, help="Random seed used in constructing the CLRS sampler; the default is 10081998.")
-    parser.add_argument("-output_dir", "--output_dir", type=str, default="/local2/ataylor2/algorithmic_reasoning", help="Output directory. Will create folders named after the algorithm for which data is generated.")
+    parser.add_argument("-output_dir", "--output_dir", type=str, default="/local2/acc/algorithmic_reasoning", help="Output directory. Will create folders named after the algorithm for which data is generated.")
     parser.add_argument("-train_test_split", "--train_test_split", type=list, default=[1000,500], help="Training/Testing split ratios. The Test set will be equally split into Validation and Test.")
     parser.add_argument("-output_formats", "--output_formats", type=list, default=["llama2", "mistral7b"], choices=OUTPUT_FORMATS, help="Output format for dataset")
     # Parse the arguments
