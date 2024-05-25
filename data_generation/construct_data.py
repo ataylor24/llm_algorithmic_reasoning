@@ -328,7 +328,7 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes = [3] #range(3, args.graph_sizes + 1)
+    graph_sizes = range(3, args.graph_sizes + 1)
     
     for graph_size in graph_sizes:
         unique_graphs = set()
@@ -353,13 +353,13 @@ def sample_data(args):
                 continue
             
             if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
-                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], train_sample.features.hints)
+                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
             elif args.algorithm in ["bfs"]:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
             else:
-                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], train_sample.features.hints)
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
             
             clrs_training_data[valid_train_idx] = train_sample
