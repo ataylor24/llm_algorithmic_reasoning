@@ -83,6 +83,35 @@ def _translate_dijkstra_hints(hints_dict, source):
             hints.append(f"Distances: {distances}")
     return hints, distances
 
+def _translate_mst_prim_hints(hints_dict, source):
+    key = hints_dict["key"]["data"]
+    pi_h = hints_dict["pi_h"]["data"]
+    mark = hints_dict["mark"]["data"]
+    in_queue = hints_dict["in_queue"]["data"]
+    u = hints_dict["u"]["data"]
+
+    hints = []
+    N = key.shape[0]
+    nodes = key.shape[2]
+
+    for i in range(N):
+        priority_queue = [j for j in range(nodes) if in_queue[i, 0, j] == 1]
+        priority_queue = sorted(priority_queue)
+        unvisited_nodes = [j for j in range(nodes) if mark[i, 0, j] == 0]
+        visited_nodes = [j for j in range(nodes) if mark[i, 0, j] == 1]
+
+        hints.append(f"Step {i}:\nPriority Queue: {priority_queue} \nUnvisited Nodes: {unvisited_nodes}\nVisited Nodes: {visited_nodes}")
+
+        if not (mark[i, 0].any() or in_queue[i, 0].any() or u[i, 0].any()):
+            hints.append(f"\nQueue is empty.\n Algorithm terminates.")
+            break
+        else:
+            mst_edges = [(int(min(pi_h[i, 0, j], j)), int(max(pi_h[i, 0, j], j)), key[i, 0, j]) for j in range(nodes) if pi_h[i, 0, j] != j]
+            mst_edges = [(i, j, w) for i, j, w in mst_edges if i < j]  # Ensure i < j
+            hints.append(f"MST Edges: {mst_edges}")
+    return hints, mst_edges
+
+
 def _translate_source_node(source_list):
     return int(np.nonzero(source_list.flatten())[0][0])
 
@@ -224,6 +253,8 @@ def translate_outputs(alg, outputs, final_d=None):
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
     elif alg in ['dijkstra', 'floyd_warshall']:
         return f"Distances: {final_d}"
+    elif alg == "mst_prim":
+        return f"MST Edges: {final_d}"
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
@@ -245,6 +276,8 @@ def translate_hints(alg, neg_edges, edgelist_lookup, source, hints):
         return _fw_translate_hints(dist_matrix)
     elif alg == "dijkstra":
         return _translate_dijkstra_hints(hints_dict, source)
+    elif alg == "mst_prim": 
+        return _translate_mst_prim_hints(hints_dict, source)
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
@@ -261,7 +294,7 @@ def _translate_inputs(alg, inputs):
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
-    elif alg in ["floyd_warshall", "dijkstra"]:
+    elif alg in ["floyd_warshall", "dijkstra", "mst_prim"]:
         algorithm = alg
         adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
         weights = np.squeeze(inputs_dict["A"]["data"])
@@ -295,7 +328,7 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes = [3] #range(3, args.graph_sizes + 1)
+    graph_sizes = range(3, args.graph_sizes + 1)
     
     for graph_size in graph_sizes:
         unique_graphs = set()
@@ -319,14 +352,14 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            if args.algorithm in ["floyd_warshall", "dijkstra"]:
+            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
                 hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
             elif args.algorithm in ["bfs"]:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
             else:
-                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), inputs[2], train_sample.features.hints)
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
             
             clrs_training_data[valid_train_idx] = train_sample
@@ -347,8 +380,12 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), test_sample.features.hints)
-            outputs = translate_outputs(args.algorithm, test_sample.outputs)
+            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
+                hints, d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], test_sample.features.hints)
+                outputs = translate_outputs(args.algorithm, test_sample.outputs, final_d)
+            else:
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], test_sample.features.hints)
+                outputs = translate_outputs(args.algorithm, test_sample.outputs)
 
             if valid_eval_idx < evaluation_instances // 2:
                 clrs_validation_data[valid_eval_idx] = test_sample
