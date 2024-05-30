@@ -381,7 +381,7 @@ def sample_data(args):
                 continue
             
             if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
-                hints, d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], test_sample.features.hints)
+                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], test_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, test_sample.outputs, final_d)
             else:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], test_sample.features.hints)
