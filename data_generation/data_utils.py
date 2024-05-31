@@ -29,7 +29,7 @@ FORMATTED_ALGORITHMS = {
     "dfs": {
         "name": "Depth-first Search",
         "goal": "reachability",
-        "instruction": ""
+        "instruction": "List all known reachable nodes ordered lexicographically smallest to largest."
             },
     "dijkstra": {
         "name": "Dijkstra's",

@@ -111,6 +111,80 @@ def _translate_mst_prim_hints(hints_dict, source):
             hints.append(f"MST Edges: {mst_edges}")
     return hints, mst_edges
 
+"""
+The majority of the work for translation, parsing the hint lists for each attribute into natural language instructions.
+
+--- Desired Structure for DFS Translations: ---
+System Prompt:...
+
+Instruction: Please perform the Depth-first Search algorithm for reachability on this graph: Edgelist: [...], Source Node: ... . Perform the algorithm step by step.
+Current Stack: [...]
+Pop from Stack: ...
+Neighborhood of ...: [...]
+List all known reachable nodes.
+
+Response: Reachable Nodes: [...]
+
+"""
+def get_reachable_nodes (node, edgelist, visited_nodes): 
+    reachable_nodes = []
+    for e in edgelist: 
+        if e[0] == node and e[1] not in visited_nodes: 
+            reachable_nodes.append(e[1])
+        elif e[1] == node and e[0] not in visited_nodes:
+            reachable_nodes.append(e[0])
+    return sorted(reachable_nodes)
+
+def _dfs_translate_list_h (neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_source_h):
+    reach_stack = []
+    reach_stack_prev = [-1]
+
+    hints = []
+    
+    node_states = [0]*len(list_color_h[0])
+    visited = []
+    source_state = -1
+
+    for i in range (len(list_color_h)):
+        c = list_color_h[i]
+
+        for j in range (len(c)): 
+                node_color = c[j]
+                if (node_color == [0,1,0] and node_states[j] != 1): #if a node is visited for the first time
+                    if (list_source_h[i].index(1.0) != source_state): 
+                        hints.append(f"Push Source {j} to stack and consider its connections.")
+                        source_state = list_source_h[i].index(1.0)
+                    else:
+                        hints.append(f"Push Node {j} to stack and consider its connections.")
+                    reach_stack.append(j)
+                    visited.append(j)
+                    node_states[j] = 1
+
+                    hints.append(f"Reachable Nodes from {j}: {get_reachable_nodes(j, edgelist_lookup, visited)}")
+
+                elif (node_color == [0,0,1] and node_states[j] != 2):
+                    hints.append(f"Node {j} has no more connections. Pop from Stack.")
+                    reach_stack.pop()
+                    node_states[j] = 2
+
+        stack_update = f"Current Stack: {reach_stack}"
+        hints.append(stack_update)
+        if len(hints) >=2 and hints[-1] == hints[-2]: 
+            hints.pop()
+
+        # if (list_source_h[0].index(1.0) != source_state): 
+        #     source_state = list_source_h[0].index(1.0)
+        #     hints.append(f"Push Source {source_state} to stack and consider its connections.")
+        #     reach_stack.append(source_state)
+        #     #hints.append(f"Current Stack: {list(reach_stack)}")
+
+    # print ("--SOURCES--")
+    # for i in range(len(list_source_h)):
+    #     
+    #     print(source_state)
+
+    return hints
+
 
 def _translate_source_node(source_list):
     return int(np.nonzero(source_list.flatten())[0][0])
@@ -262,15 +336,18 @@ def translate_outputs(alg, outputs, final_d=None):
 def translate_hints(alg, neg_edges, edgelist_lookup, source, hints):
     hints_dict = _datapoints_list_to_dict(hints)
 
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs"]:
         # unweighted graph algorithms
         list_reach_h = _preprocess_hint_matrix(alg, hints_dict["reach_h"]["data"])
         list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
         list_h = _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h)
         return list_h
-    elif alg in ["dka", "bfd"]:
-        #potentially weighted graph algorithms
-        raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
+    elif alg in ["dfs"]:
+        list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
+        list_color_h = _preprocess_hint_matrix(alg, hints_dict["color"]["data"])
+        list_source_h = _preprocess_hint_matrix(alg, hints_dict["s"]["data"])
+        list_h = _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_source_h)
+        return list_h
     elif alg == "floyd_warshall":
         dist_matrix = hints_dict["D"]["data"]
         return _fw_translate_hints(dist_matrix)
@@ -289,11 +366,8 @@ def _translate_inputs(alg, inputs):
         # unweighted graph algorithms
         algorithm = alg
         list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
-        source = _translate_source_node(inputs_dict["s"]["data"])
+        source = _translate_source_node(inputs_dict["s"]["data"]) if alg == "bfs" else "1"
         return algorithm, list_edge, source
-    elif alg in ["dka", "bfd"]:
-        #potentially weighted graph algorithms
-        raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
     elif alg in ["floyd_warshall", "dijkstra", "mst_prim"]:
         algorithm = alg
         adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
@@ -355,9 +429,9 @@ def sample_data(args):
             if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
                 hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
-            elif args.algorithm in ["bfs"]:
-                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
-                outputs = translate_outputs(args.algorithm, train_sample.outputs)
+            # elif args.algorithm in ["bfs"]:
+            #     hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
+            #     outputs = translate_outputs(args.algorithm, train_sample.outputs)
             else:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
