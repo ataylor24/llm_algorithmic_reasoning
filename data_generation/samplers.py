@@ -407,7 +407,7 @@ class DfsSampler(Sampler):
   ):
     graph = self._random_er_graph(
         nb_nodes=length, p=self._rng.choice(p),
-        directed=True, acyclic=False, weighted=False)
+        directed=False, acyclic=False, weighted=False)
     return [graph]
 
 
