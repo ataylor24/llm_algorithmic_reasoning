@@ -45,6 +45,11 @@ FORMATTED_ALGORITHMS = {
         "name": "Floyd-Warshall",
         "goal": "shortest-path",
         "instruction": "What are the shortest path distances between all pairs of nodes?"
+    },
+    "mst_prim": {
+        "name": "mst_prim",
+        "goal": "minimum spanning tree",
+        "instruction": "What is the edgelist of the minimum spanning tree?"
     }
 }
 
@@ -202,8 +207,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Jointly constructs CLRS data and sequence-to-sequence data.")
 
     # Add arguments
-    parser.add_argument("algorithm", type=str, choices=['bfs', 'dfs', 'dijkstra', 'floyd_warshall'], 
-                        help="Algorithm must be one of: 'bfs', 'dfs', 'dijkstra', or 'floyd_warshall'.")
+    parser.add_argument("algorithm", type=str, choices=['bfs', 'dfs', 'dijkstra', 'floyd_warshall', 'mst_prim'], 
+                        help="Algorithm must be one of: 'bfs', 'dfs', 'dijkstra', 'floyd_warshall', or 'mst_prim.")
     parser.add_argument("-training_style", "--training_style", type=str, default="QA",choices=['QA', 'AoT'], #CoT, ToT, GoT
                         help="Algorithm must be one of: 'bfs', 'dfs','dka', or 'bfd'.")
     parser.add_argument("-graph_sizes", "--graph_sizes", type=int, default=10, help="Number of nodes present in the graphs generated. Default behavior sets num_samples to the number of training datapoints.")
