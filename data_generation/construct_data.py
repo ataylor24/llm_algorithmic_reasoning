@@ -124,7 +124,7 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
     reach_h_queue = []
     neighborhood_h = {}
     visited_ = set()
-
+    
     for level_h, (reach_h, pred_h) in enumerate(zip(list_reach_h, list_pred_h)):            
         level_h_queue = set()
         # termination condition
@@ -167,13 +167,13 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
                 bfs_dequeue.add(current_source)
             
             if len(dict_reach_h[reach_h]) == 0:
-                if idx == 0:
-                    current_hint.append(f"Source {reach_h} has no univisited neighbors.\n Algorithm terminates.")
-                elif len(bfs_queue) <= 0:
-                    #suffix = "Move the the next queue element." if len(bfs_queue) > 0 else " Queue is empty.\n Algorithm terminates."
-                    # suffix = "" if len(bfs_queue) > 0 else "\nQueue is empty.\n Algorithm terminates."
-                    # current_hint.append(f"{reach_h} has no univisited neighbors.{suffix}")
-                    current_hint.append(f"\nQueue is empty.\n Algorithm terminates.")
+                # if idx == 0:
+                #     current_hint.append(f"Source {reach_h} has no univisited neighbors.\n Algorithm terminates.")
+                # elif len(bfs_queue) <= 0:
+                #     #suffix = "Move the the next queue element." if len(bfs_queue) > 0 else " Queue is empty.\n Algorithm terminates."
+                #     # suffix = "" if len(bfs_queue) > 0 else "\nQueue is empty.\n Algorithm terminates."
+                #     # current_hint.append(f"{reach_h} has no univisited neighbors.{suffix}")
+                #     current_hint.append(f"\nQueue is empty.\n Algorithm terminates.")
                 continue
             
             #order the hints by placing the lowest node idx first
@@ -200,8 +200,8 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
             bfs_queue.extend(sorted(list(bfs_subqueue)))
             idx += 1
         hints.append("\n".join(current_hint))
-        hints.append(str(list(reachable_nodes)))
-            
+        hints.append(f"Reachable Nodes: {list(reachable_nodes)}")
+
     return hints
 
 def _datapoint_to_dict(dp):
@@ -230,9 +230,9 @@ def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_
         if output_format in data_utils.OUTPUT_FORMATS:            
             for reasoning_strategy in data_utils.REASONING_STRATEGIES:
                 dataset = DatasetDict({
-                    "train": Dataset.from_list(data_utils.write_llama_chat_format(reasoning_strategy, "training", trans_training_data)),
-                    "test": Dataset.from_list(data_utils.write_llama_chat_format(reasoning_strategy, "evaluation", trans_validation_data)),
-                    "evaluation": Dataset.from_list(data_utils.write_llama_chat_format(reasoning_strategy, "evaluation", trans_testing_data))
+                    "train": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "training", trans_training_data)),
+                    "test": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_validation_data)),
+                    "evaluation": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_testing_data))
                 })
                 
                 outfile = os.path.join(os.path.join(llm_data_dir, reasoning_strategy))
@@ -259,7 +259,7 @@ def translate_outputs(alg, outputs, final_d=None):
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
 
-def translate_hints(alg, neg_edges, edgelist_lookup, source, hints):
+def translate_hints(alg, neg_edges, edgelist_lookup, hints, source=None):
     hints_dict = _datapoints_list_to_dict(hints)
 
     if alg in ["bfs", "dfs"]:
@@ -290,10 +290,11 @@ def _translate_inputs(alg, inputs):
         algorithm = alg
         list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
         source = _translate_source_node(inputs_dict["s"]["data"])
+       
         return algorithm, list_edge, source
-    elif alg in ["dka", "bfd"]:
+    elif alg in ["bfd"]:
         #potentially weighted graph algorithms
-        raise NotImplementedError(f"[WILL BE REPLACED] No input translation functionality has been implemented for {alg}")
+        raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
     elif alg in ["floyd_warshall", "dijkstra", "mst_prim"]:
         algorithm = alg
         adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
@@ -328,7 +329,7 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes = range(3, args.graph_sizes + 1)
+    graph_sizes = args.graph_sizes
     
     for graph_size in graph_sizes:
         unique_graphs = set()
@@ -353,13 +354,13 @@ def sample_data(args):
                 continue
             
             if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
-                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
+                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints, source=inputs[2])
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
             elif args.algorithm in ["bfs"]:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
             else:
-                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], train_sample.features.hints)
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints,source=inputs[2])
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
             
             clrs_training_data[valid_train_idx] = train_sample
@@ -381,10 +382,13 @@ def sample_data(args):
                 continue
             
             if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
-                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], test_sample.features.hints)
+                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), test_sample.features.hints, source=inputs[2])
                 outputs = translate_outputs(args.algorithm, test_sample.outputs, final_d)
+            elif args.algorithm in ["bfs"]:
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), test_sample.features.hints)
+                outputs = translate_outputs(args.algorithm, test_sample.outputs)
             else:
-                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), inputs[2], test_sample.features.hints)
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), test_sample.features.hints,source=inputs[2])
                 outputs = translate_outputs(args.algorithm, test_sample.outputs)
 
             if valid_eval_idx < evaluation_instances // 2:
