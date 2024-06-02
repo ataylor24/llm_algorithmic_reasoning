@@ -29,7 +29,7 @@ FORMATTED_ALGORITHMS = {
     "dfs": {
         "name": "Depth-first Search",
         "goal": "reachability",
-        "instruction": ""
+        "instruction": "List all known connected components."
             },
     "dijkstra": {
         "name": "Dijkstra's",
@@ -47,7 +47,7 @@ FORMATTED_ALGORITHMS = {
         "instruction": "What are the shortest path distances between all pairs of nodes?"
     },
     "mst_prim": {
-        "name": "mst_prim",
+        "name": "Prim MST",
         "goal": "minimum spanning tree",
         "instruction": "What is the edgelist of the minimum spanning tree?"
     }

@@ -111,6 +111,107 @@ def _translate_mst_prim_hints(hints_dict, source):
             hints.append(f"MST Edges: {mst_edges}")
     return hints, mst_edges
 
+def _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_source_h):
+    reach_stack = []
+    hints = []
+    final_groupings = []
+    visited = set()
+    current_component = []
+
+    def get_neighborhood(node, edgelist):
+        neighbors = set()
+        for edge in edgelist:
+            if edge[0] == node:
+                neighbors.add(edge[1])
+            elif edge[1] == node:
+                neighbors.add(edge[0])
+        return list(neighbors)
+
+    def find_component(components, node):
+        for component in components:
+            if node in component:
+                return component
+        return None
+
+    for i in range(len(list_color_h)):
+        c = list_color_h[i]
+
+        for j in range(len(c)):
+            node_color = c[j]
+            source_node = list_source_h[i].index(1.0)
+            
+            if node_color == [0, 1, 0] and j not in visited:  # Node is visited for the first time
+                reach_stack.append(j)
+                visited.add(j)
+                
+                # Update current component
+                if not current_component:
+                    current_component = [source_node]
+                current_component.append(j)
+
+                # Append stack update hint
+                stack_update = f"Stack: {reach_stack}, Pop Node: {reach_stack[-1]}, 1-hop Neighborhood of {reach_stack[-1]}: {get_neighborhood(reach_stack[-1], edgelist_lookup)}."
+                hints.append(stack_update)
+                
+                # Append connected components hint
+                formatted_components = ', '.join(
+                    f"({', '.join(map(str, sorted(set(component))))})"
+                    for component in final_groupings + [current_component]
+                )
+                hints.append(f"Connected Components: [{formatted_components}]")
+
+            elif node_color == [0, 0, 1] and reach_stack:  # Node has been fully explored and stack is not empty
+                reach_stack.pop()
+
+        # Add current component to final groupings if stack is empty
+        if not reach_stack and current_component:
+            final_groupings.append(current_component)
+            current_component = []
+
+    # Filter out components with no edges and merge nodes into correct components
+    final_groupings = [
+        sorted(set(component))
+        for component in final_groupings
+        if any(len(get_neighborhood(node, edgelist_lookup)) > 0 for node in component)
+    ]
+
+    # Merge components correctly
+    merged_groupings = []
+    for component in final_groupings:
+        added = False
+        for mg in merged_groupings:
+            if any(node in mg for node in component):
+                mg.update(component)
+                added = True
+                break
+        if not added:
+            merged_groupings.append(set(component))
+
+    final_groupings = [sorted(mg) for mg in merged_groupings]
+
+    formatted_components = ', '.join(
+        f"({', '.join(map(str, component))})"
+        for component in final_groupings
+    )
+    return hints, final_groupings
+
+def get_neighborhood(node, edgelist):
+    reachable_nodes = []
+    for e in edgelist:
+        if e[0] == node:
+            reachable_nodes.append(e[1])
+        elif e[1] == node:
+            reachable_nodes.append(e[0])
+    return sorted(reachable_nodes)
+
+def get_reachable_nodes(node, edgelist, visited_nodes):
+    reachable_nodes = []
+    for e in edgelist:
+        if e[0] == node and e[1] not in visited_nodes:
+            reachable_nodes.append(e[1])
+        elif e[1] == node and e[0] not in visited_nodes:
+            reachable_nodes.append(e[0])
+    return sorted(reachable_nodes)
 
 def _translate_source_node(source_list):
     return int(np.nonzero(source_list.flatten())[0][0])
@@ -243,11 +344,13 @@ def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_
 def translate_outputs(alg, outputs, final_d=None):
     outputs_dict = _datapoints_list_to_dict(outputs)
 
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs"]:
         # unweighted graph algorithms
         list_out_preds = outputs_dict["pi"]["data"][0]
         list_out = _bfs_translate_output(list_out_preds)
         return list_out
+    if alg == "dfs":
+        return f"Connected Components: {final_d}"
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
@@ -262,15 +365,17 @@ def translate_outputs(alg, outputs, final_d=None):
 def translate_hints(alg, neg_edges, edgelist_lookup, hints, source=None):
     hints_dict = _datapoints_list_to_dict(hints)
 
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs"]:
         # unweighted graph algorithms
         list_reach_h = _preprocess_hint_matrix(alg, hints_dict["reach_h"]["data"])
         list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
         list_h = _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h)
         return list_h
-    elif alg in ["dka", "bfd"]:
-        #potentially weighted graph algorithms
-        raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
+    elif alg in ["dfs"]:
+        list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
+        list_color_h = _preprocess_hint_matrix(alg, hints_dict["color"]["data"])
+        list_source_h = _preprocess_hint_matrix(alg, hints_dict["s"]["data"])
+        return _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_source_h)
     elif alg == "floyd_warshall":
         dist_matrix = hints_dict["D"]["data"]
         return _fw_translate_hints(dist_matrix)
@@ -285,16 +390,13 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints, source=None):
 def _translate_inputs(alg, inputs):
     inputs_dict = _datapoints_list_to_dict(inputs)
 
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs"]:
         # unweighted graph algorithms
         algorithm = alg
         list_edge = _translate_unweighted_graph(inputs_dict["adj"]["data"])
-        source = _translate_source_node(inputs_dict["s"]["data"])
-       
+
+        source = _translate_source_node(inputs_dict["s"]["data"]) 
         return algorithm, list_edge, source
-    elif alg in ["bfd"]:
-        #potentially weighted graph algorithms
-        raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
     elif alg in ["floyd_warshall", "dijkstra", "mst_prim"]:
         algorithm = alg
         adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
@@ -304,15 +406,31 @@ def _translate_inputs(alg, inputs):
 
         for i in range(len(adj_matrix)):
             for j in range(len(adj_matrix[i])):
-                if adj_matrix[i][j] == 1 and weights[i][j] != 0:
+                if adj_matrix[i][j] == 1 and weights[i][j] != 0 and i!=j:
                     edge = (i, j, float(weights[i][j]))
                     reverse_edge = (j, i, float(weights[j][i]))
                     if reverse_edge not in edge_set:
                         list_edge_with_weights.append(edge)
                         edge_set.add(edge)
 
-        source = "" if alg == "floyd_warshall" else _translate_source_node(inputs_dict["s"]["data"])
+        source = "" if alg in ["floyd_warshall"] else _translate_source_node(inputs_dict["s"]["data"])
         return algorithm, list_edge_with_weights, source
+    elif alg == "dfs":
+        algorithm = alg
+        adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
+        weights = np.squeeze(inputs_dict["A"]["data"])
+        edge_set = set()
+        list_edge_with_weights = []
+
+        for i in range(len(adj_matrix)):
+            for j in range(len(adj_matrix[i])):
+                if adj_matrix[i][j] == 1 and weights[i][j] != 0 and i!=j:
+                    edge = (i, j)
+                    reverse_edge = (j, i)
+                    if reverse_edge not in edge_set:
+                        list_edge_with_weights.append(edge)
+                        edge_set.add(edge)
+        return algorithm, list_edge_with_weights, ""
     else:
         raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
 
@@ -353,12 +471,10 @@ def sample_data(args):
             if edgelist_hash in unique_graphs:
                 continue
             
-            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
+            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim", "dfs"]:
                 hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints, source=inputs[2])
+
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
-            elif args.algorithm in ["bfs"]:
-                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints)
-                outputs = translate_outputs(args.algorithm, train_sample.outputs)
             else:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints,source=inputs[2])
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
@@ -380,9 +496,10 @@ def sample_data(args):
             edgelist_hash = hash_edgelist(inputs[1])
             if edgelist_hash in unique_graphs:
                 continue
-            
-            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim"]:
+
+            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim", "dfs"]:
                 hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), test_sample.features.hints, source=inputs[2])
+
                 outputs = translate_outputs(args.algorithm, test_sample.outputs, final_d)
             elif args.algorithm in ["bfs"]:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), test_sample.features.hints)
