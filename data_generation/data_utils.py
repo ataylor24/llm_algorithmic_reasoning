@@ -4,8 +4,8 @@ import json
 import dill
 import yaml
 
-OUTPUT_FORMATS = ['llama2', "mistral7b"]
-REASONING_STRATEGIES = ["CoT", "IO"]
+OUTPUT_FORMATS = ["chat"]
+REASONING_STRATEGIES = ["IO", "Int_Steps"]
 
 YML_OUTFILE = {
     "configs": [
@@ -77,7 +77,7 @@ def write_clrs_format(outfile, data):
 def write_data_config_readme(outfile):
     dump_yml(outfile, YML_OUTFILE)
     
-def write_llama_chat_format(reasoning_strategy, data_sect, data):
+def write_chat_format(reasoning_strategy, data_sect, data):
     
 
     llama_data = []
@@ -99,15 +99,19 @@ def write_llama_chat_format(reasoning_strategy, data_sect, data):
                 role = "user"
                 
             hints = execution_step + "\n" if (reasoning_strategy != "IO" and data_sect != "evaluation") or i % 2 == 1 else ""
-
+            
             if i == 0:
                 if source_node == "":
-                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; \n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]. \n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                    init_prompt = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]"
                 else:
-                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
-                init_prompt = content
+                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}.\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                    init_prompt = content
             elif i + 1 >= len(data[idx]["hints"]):
-                content =  data[idx]["outputs"]
+                if algorithm in ["bfs"]:
+                    content =f"{hints}"
+                else:
+                    content =  data[idx]["outputs"]
             elif i % 2 == 1:
                 content =f"{hints}"
             else:
@@ -133,8 +137,10 @@ def write_llama_chat_format(reasoning_strategy, data_sect, data):
         # out_yml = os.path.join(os.path.join(output_dir, reasoning_strategy), "README.md")
         
         # write_data_config_readme(out_yml)
-        
-        # write_json(outfile + ".json", llama_data)
+        # if data_sect == "training":
+        #     print(llama_data[-1]["messages"])
+        #     print("-------------")
+    write_json(f"/local2/ataylor2/algorithmic_reasoning/data_samples/{data_sect}_sample.json", llama_data)
         
     return llama_data
 
@@ -211,13 +217,13 @@ def parse_args():
                         help="Algorithm must be one of: 'bfs', 'dfs', 'dijkstra', 'floyd_warshall', or 'mst_prim.")
     parser.add_argument("-training_style", "--training_style", type=str, default="QA",choices=['QA', 'AoT'], #CoT, ToT, GoT
                         help="Algorithm must be one of: 'bfs', 'dfs','dka', or 'bfd'.")
-    parser.add_argument("-graph_sizes", "--graph_sizes", type=int, default=10, help="Number of nodes present in the graphs generated. Default behavior sets num_samples to the number of training datapoints.")
+    parser.add_argument("-graph_sizes", "--graph_sizes", type=list, default=[5,6,7,8,9,10,11,12,13,14,15,20,50], help="Number of nodes present in the graphs generated. Default behavior sets num_samples to the number of training datapoints.")
     parser.add_argument("-num_samples", "--num_samples", type=int, default=-1, help="Number of data samples to generate.")
     parser.add_argument("-neg_edges", "--neg_edges", type=bool, default=True, help="Include negative edges, ex. '0 is not reachable from 1'.")
     parser.add_argument("-seed", "--seed", type=int, default=100898, help="Random seed used in constructing the CLRS sampler; the default is 10081998.")
     parser.add_argument("-output_dir", "--output_dir", type=str, default="/local2/ataylor2/algorithmic_reasoning", help="Output directory. Will create folders named after the algorithm for which data is generated.")
     parser.add_argument("-train_test_split", "--train_test_split", type=list, default=[1000,500], help="Training/Testing split ratios. The Test set will be equally split into Validation and Test.")
-    parser.add_argument("-output_formats", "--output_formats", type=list, default=["llama2", "mistral7b"], choices=OUTPUT_FORMATS, help="Output format for dataset")
+    parser.add_argument("-output_formats", "--output_formats", type=list, default=["chat"], choices=OUTPUT_FORMATS, help="Output format for dataset")
     # Parse the arguments
     args = parser.parse_args()
 
