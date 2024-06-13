@@ -4,8 +4,8 @@ import json
 import dill
 import yaml
 
-OUTPUT_FORMATS = ["chat"]
-REASONING_STRATEGIES = ["IO", "Int_Steps"]
+OUTPUT_FORMATS = ["chat", "chat_mistral", "chat_gpt"] #["chat_rerun_ralpha_8", "chat_rerun_ralpha_32"]#["chat", "chat_mistral", "chat_gpt"]
+# REASONING_STRATEGIES = ["IO_no_chat"]#, "IO", "Int_Steps"]
 
 YML_OUTFILE = {
     "configs": [
@@ -20,37 +20,48 @@ YML_OUTFILE = {
     ]
 }
 
+REASONING_STRATEGIES = {
+    "IO_no_chat": "; Do not provide intermediate steps",
+    "IO": "",
+    "Int_Steps": ""
+}
+
 FORMATTED_ALGORITHMS = {
     "bfs": {
         "name": "Breadth-first Search",
         "goal": "reachability",
-        "instruction": "List all known reachable nodes ordered lexicographically smallest to largest."
+        "instruction": "List all known reachable nodes ordered lexicographically smallest to largest.",
+        "output_format":"; Output Format: Reachable Nodes: [node1, node2, ...]",
+        "eval_output_format": "Reachable Nodes:"
         },
     "dfs": {
         "name": "Depth-first Search",
         "goal": "reachability",
-        "instruction": "List all known connected components."
-            },
+        "instruction": "List all known connected components.",
+        "output_format":"; Output Format: Connected Components: [(node1, node2), (node3,node5), ...]",
+        "eval_output_format": "Connected Components:"
+        },
     "dijkstra": {
         "name": "Dijkstra's",
         "goal": "shortest-path",
-        "instruction": "What are the distances between each pair of nodes?"
-        },
-    "bfd": {
-        "name": "Bellman-Ford",
-        "goal": "shortest path",
-        "instruction": ""
+        "instruction": "What are the distances between each pair of nodes?",
+        "output_format":"; Output Format: Distances: [(node1, node2, weight), ...]",
+        "eval_output_format": "Distances:"
         },
     "floyd_warshall": {
         "name": "Floyd-Warshall",
         "goal": "shortest-path",
-        "instruction": "What are the shortest path distances between all pairs of nodes?"
-    },
+        "instruction": "What are the shortest path distances between all pairs of nodes?",
+        "output_format":"; Output Format: Distances: [(node1, node2, weight), ...]",
+        "eval_output_format": "Distances:"
+        },
     "mst_prim": {
         "name": "Prim MST",
         "goal": "minimum spanning tree",
-        "instruction": "What is the edgelist of the minimum spanning tree?"
-    }
+        "instruction": "What is the edgelist of the minimum spanning tree?",
+        "output_format":"; Output Format: MST Edges: [(node1, node2, weight), ...]",
+        "eval_output_format": "MST Edges:"
+        }
 }
 
 TRAIN_TEST_SPLIT = {
@@ -91,21 +102,25 @@ def write_chat_format(reasoning_strategy, data_sect, data):
         init_prompt = None
         
         for i, execution_step in enumerate(data[idx]["hints"]):
+            if reasoning_strategy == "IO_no_chat" and i != 0 and i + 1 < len(data[idx]["hints"]):
+                continue
+                
             if i == 0:
                 role = "system"
             elif i % 2 == 1:
                 role = "assistant"
             else:
                 role = "user"
-                
+            
+            
             hints = execution_step + "\n" if (reasoning_strategy != "IO" and data_sect != "evaluation") or i % 2 == 1 else ""
             
             if i == 0:
                 if source_node == "":
-                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]. \n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]{FORMATTED_ALGORITHMS[algorithm]['output_format']}{REASONING_STRATEGIES[reasoning_strategy]}.\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
                     init_prompt = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]"
                 else:
-                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}.\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
+                    content = f"Please perform the {FORMATTED_ALGORITHMS[algorithm]['name']} algorithm for {FORMATTED_ALGORITHMS[algorithm]['goal']} on the following graph: Edgelist: [{','.join([str(tuple(edge)) for edge in edge_list])}]; Source Node: {str(source_node)}{FORMATTED_ALGORITHMS[algorithm]['output_format']}{REASONING_STRATEGIES[reasoning_strategy]}.\n{hints}\n{FORMATTED_ALGORITHMS[algorithm]['instruction']}"
                     init_prompt = content
             elif i + 1 >= len(data[idx]["hints"]):
                 if algorithm in ["bfs"]:
@@ -221,7 +236,7 @@ def parse_args():
     parser.add_argument("-num_samples", "--num_samples", type=int, default=-1, help="Number of data samples to generate.")
     parser.add_argument("-neg_edges", "--neg_edges", type=bool, default=True, help="Include negative edges, ex. '0 is not reachable from 1'.")
     parser.add_argument("-seed", "--seed", type=int, default=100898, help="Random seed used in constructing the CLRS sampler; the default is 10081998.")
-    parser.add_argument("-output_dir", "--output_dir", type=str, default="/local2/ataylor2/algorithmic_reasoning", help="Output directory. Will create folders named after the algorithm for which data is generated.")
+    parser.add_argument("-output_dir", "--output_dir", type=str, default="/local/ataylor2/algorithmic_reasoning", help="Output directory. Will create folders named after the algorithm for which data is generated.")
     parser.add_argument("-train_test_split", "--train_test_split", type=list, default=[1000,500], help="Training/Testing split ratios. The Test set will be equally split into Validation and Test.")
     parser.add_argument("-output_formats", "--output_formats", type=list, default=["chat"], choices=OUTPUT_FORMATS, help="Output format for dataset")
     # Parse the arguments
