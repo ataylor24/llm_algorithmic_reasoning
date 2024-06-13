@@ -369,8 +369,7 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints, source=None):
         # unweighted graph algorithms
         list_reach_h = _preprocess_hint_matrix(alg, hints_dict["reach_h"]["data"])
         list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
-        list_h = _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h)
-        return list_h
+        return _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_pred_h)
     elif alg in ["dfs"]:
         list_pred_h = _preprocess_hint_matrix(alg, hints_dict["pi_h"]["data"])
         list_color_h = _preprocess_hint_matrix(alg, hints_dict["color"]["data"])
@@ -476,7 +475,7 @@ def sample_data(args):
 
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
             else:
-                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[0]), train_sample.features.hints,source=inputs[2])
+                hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints, source=inputs[2])
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
             
             clrs_training_data[valid_train_idx] = train_sample
