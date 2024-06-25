@@ -57,15 +57,15 @@ bash run_scripts/bfs_CoT.sh
 ```
 ### Running inference with trained models 
 
-An example of a script used to run the benchmark on a selected algorithm is included in `run_scripts`.
+An example of a script used to run the benchmark on a selected algorithm is included in `inference_scripts`.
 
 ```bash
-bash run_scripts/bfs_CoT.sh
+bash inference_scripts/bfs_CoT.sh
 ```
 
 ### Configuration
 
-You can customize the benchmark settings using the configuration file `recipes/algorithmic_reasoning/sft/config_qlora.yaml`.
+You can customize the benchmark settings using the configuration file `configuration_example/config_qlora.yaml`.
 
 ## Performance Metrics
 
