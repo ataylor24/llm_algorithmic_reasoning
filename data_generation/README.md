@@ -1,25 +1,31 @@
 # Construct Data Module
 
 ## Overview
-The `construct_data.py` script is part of a larger project focused on generating and preprocessing datasets for various graph algorithms. It supports algorithms like Breadth-First Search (BFS), Depth-First Search (DFS), Dijkstra's algorithm, Floyd-Warshall algorithm, and Prim's Minimum Spanning Tree (MST). The script converts graph data into formats suitable for training machine learning models and saves the datasets in multiple formats, such as CLRS and LLM-compatible formats.
+The `construct_data.py` script focuses on generating and preprocessing datasets for various graph algorithms. It currently supports the following algorithms: Breadth-First Search (BFS), Depth-First Search (DFS), Dijkstra's algorithm, Floyd-Warshall algorithm, and Prim's Minimum Spanning Tree (MST). The script converts graph data from the CLRS benchmark into formats suitable for LLMs and saves the datasets in multiple formats, such as CLRS and LLM-compatible formats.
+
+## Usage
+To use the `construct_data.py` script, run it from the command line with appropriate arguments. The script supports various command-line options to customize the data generation process, including the algorithm type, graph sizes, number of samples, and output formats.
+
+Example:
+```sh
+python construct_data.py bfs --graph_sizes [5,6,7] --num_samples 100 --output_dir /path/to/output
+```
 
 ## Adding New Algorithms
 To add support for a new graph algorithm, follow these steps:
 
-1. **Define Preprocessing Functions**: Implement preprocessing functions for the new algorithm. These functions should handle the translation of input adjacency matrices and hint matrices specific to the algorithm.
+1. **Translate Inputs**: Update the `_translate_inputs` function to handle the new algorithm by converting its specific inputs into a standardized format. These functions should handle the translation of input adjacency and weight matrices specific to the algorithm. We follow a 0-indexed naming convention (ex node 0, node 1, etc.). 
 
-2. **Translate Inputs**: Update the `_translate_inputs` function to handle the new algorithm by converting its specific inputs into a standardized format.
+2. **Translate Hints**: Implement hint translation functions for the new algorithm. Add these functions to the `translate_hints` function to process hints specific to the algorithm.
 
-3. **Translate Hints**: Implement hint translation functions for the new algorithm. Add these functions to the `translate_hints` function to process hints specific to the algorithm.
+3. **Translate Outputs**: Create output translation functions for the new algorithm and update the `translate_outputs` function to format the outputs accordingly.
 
-4. **Translate Outputs**: Create output translation functions for the new algorithm and update the `translate_outputs` function to format the outputs accordingly.
+4. **Sampling Data**: Ensure the new algorithm is added to or already in `algorithms` in the format required to generate data samples and hints (see the CLRS Benchmark).
 
-5. **Sampling Data**: Ensure the `sample_data` function includes the new algorithm in its sampling process, generating the required data samples and hints.
-
-6. **Modify Argument Parsing**: Update the `parse_args` function to include the new algorithm in the list of supported algorithms.
+5. **Modify Argument Parsing**: Update the `parse_args` function to include the new algorithm in the list of supported algorithms.
 
 ### Example of Adding a New Algorithm
-Assuming the new algorithm is "A-Star":
+This toy example will be done with "A-Star":
 
 1. **Preprocessing Functions**:
    ```python
@@ -78,13 +84,5 @@ Assuming the new algorithm is "A-Star":
        # Existing code ...
        return args
    ```
-
-## Usage
-To use the `construct_data.py` script, run it from the command line with appropriate arguments. The script supports various command-line options to customize the data generation process, including the algorithm type, graph sizes, number of samples, and output formats.
-
-Example:
-```sh
-python construct_data.py bfs --graph_sizes [5,6,7] --num_samples 100 --output_dir /path/to/output
-```
 
 Refer to the main README of the project for installation instructions and a summary of the overall codebase.
