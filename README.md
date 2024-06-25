@@ -42,35 +42,21 @@ This will create a new Conda environment with all the dependencies specified in 
 Activate the newly created environment using:
 
 ```bash
-conda activate <your_environment_name>
+conda activate llm_gar
 ```
-
-Replace `<your_environment_name>` with the name specified in the `environment.yml` file.
-
 
 ## Usage
 
+### Adding to the Benchmark
+Follow the instructions in `data_generation`.
+
 ### Running the Benchmark
 
-To run the benchmark on the included algorithms:
+An example of a script used to run the benchmark on the included algorithms is included in `run_scripts`.
 
 ```bash
-python run_benchmark.py --algorithm bfs
-python run_benchmark.py --algorithm dfs
-python run_benchmark.py --algorithm dijkstra
-python run_benchmark.py --algorithm floyd-warshall
-python run_benchmark.py --algorithm mst-prim
+bash run_scripts/bfs_CoT.sh
 ```
-
-### Input and Output
-
-Each algorithm requires specific input formats:
-
-- **BFS and DFS:** Requires an adjacency list or matrix.
-- **Dijkstra's and Floyd-Warshall:** Requires a weight matrix.
-- **Prim's MST:** Requires an adjacency matrix with weights.
-
-The output will include the results of the algorithmic execution, intermediate steps, and performance metrics.
 
 ### Configuration
 
