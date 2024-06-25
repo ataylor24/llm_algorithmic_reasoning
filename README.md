@@ -3,9 +3,6 @@ Data generation is an adaption of the CLRS benchmark, which can be found here: h
 
 Seed used = 100898
 
-To create a conda environment with the 
-```conda env create --file environment.yml```
-
 ## Introduction
 
 The LLM-CLRS Graph Reasoning Benchmark is designed to evaluate the performance of large language models (LLMs) on classical graph algorithms using intermediate steps. Despite advances in LLMs, they exhibit significant limitations in structured, multistep reasoning tasks, particularly those involving explicit graph structures. Our benchmark addresses this gap by evaluating state-of-the-art LLMs on five fundamental algorithms: BFS, DFS, Dijkstra's, Floyd-Warshall, and Prim's MST.
@@ -30,18 +27,26 @@ git clone https://github.com/yourusername/LLM-CLRS-Graph-Reasoning-Benchmark.git
 cd LLM-CLRS-Graph-Reasoning-Benchmark
 ```
 
-### Create a Virtual Environment
+### Create a Conda Environment
+
+To create a Conda environment with the required dependencies, run the following command:
 
 ```bash
-python -m venv env
-source env/bin/activate  # On Windows use `env\Scripts\activate`
+conda env create --file environment.yml
 ```
 
-### Install Dependencies
+This will create a new Conda environment with all the dependencies specified in the `environment.yml` file.
+
+### Activate the Conda Environment
+
+Activate the newly created environment using:
 
 ```bash
-pip install -r requirements.txt
+conda activate <your_environment_name>
 ```
+
+Replace `<your_environment_name>` with the name specified in the `environment.yml` file.
+
 
 ## Usage
 
