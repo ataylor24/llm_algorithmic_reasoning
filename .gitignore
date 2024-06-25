@@ -5,4 +5,6 @@ wandb/
 run_scripts/mlruns
 run_scripts/tmp_trainer
 run_scripts/out
+alg_run_scripts
+alg_inference_scripts
 build

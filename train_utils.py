@@ -9,6 +9,16 @@ from copy import copy
 
 ACCEPTED_MODELS = ["llama2", "mistral7b", "gpt-4o"]
 
+def compare_results(current_best, prospect):
+    
+    if prospect["accuracy_score"] > current_best["accuracy_score"]:
+        return True
+    
+    if prospect["accuracy_score"] == current_best["accuracy_score"] and prospect["avg_f1_score"] > current_best["avg_f1_score"]:
+        return True
+    
+    return False
+
 def indicator_func(gold_size, indicated_val=0):
     return [indicated_val] * gold_size
 
@@ -39,10 +49,12 @@ def partial_recall_precision(input_list, gold):
     
     true_positive = []
     false_positive = []
+    out_of_order = []
     false_negative = copy(gold)
     error_dict = {
         "fp": false_positive,
-        "fn": false_negative
+        "fn": false_negative,
+        "ooo": out_of_order
     }
     
     if input_list == None:
@@ -51,8 +63,12 @@ def partial_recall_precision(input_list, gold):
     if len(gold) == 0 and len(input_list) == 0:
         #precision, recall
         return 1, 1, 1, error_dict
-    
-    for index in input_list:
+
+    for i, index in enumerate(input_list):
+        
+        if i >= len(gold) or input_list[i] != gold[i]:
+            out_of_order.append(index)
+            
         if index in gold and index in false_negative:
             true_positive.append(index)
             false_negative.remove(index)
@@ -75,7 +91,8 @@ ACCEPTED_ALGORITHMS = {
     "dfs": {
         "name": "Depth-first Search",
         "output_prefix": "Connected Components:",
-        "output_regex": r"\s*(\[(\[(?:\d+(?:,\s*\d+)*)\](?:,\s*\[(?:\d+(?:,\s*\d+)*)\])*)\]|\[(\((?:\d+(?:,\s*\d+)*)\)(?:,\s*\((?:\d+(?:,\s*\d+)*)\))*)\])",#r"\s*(\[\[(?:\d+(?:,\s*)?)+\](?:,\s*\[(?:\d+(?:,\s*)?)+\])*\])",
+        "output_regex": r"\s*(\[.*?\])", #r"\s*(\[(\[(?:\d+(?:,\s*\d+)*)\](?:,\s*\[(?:\d+(?:,\s*\d+)*)\])*)\]|\[(\((?:\d+(?:,\s*\d+)*)\)(?:,\s*\((?:\d+(?:,\s*\d+)*)\))*)\])",#r"\s*(\[\[(?:\d+(?:,\s*)?)+\](?:,\s*\[(?:\d+(?:,\s*)?)+\])*\])",
+        "malformed_ouput_regex":r"\s*(\[\[.*?\]\])",
         "precision_recall": partial_recall_precision,
         "partial_eval": existence_value
     },
@@ -203,7 +220,7 @@ def parse_malformed_string(input_str):
 
     return node_list
 
-def unpack_literal(literal_str):
+def unpack_literal(literal_str, gold=False):
     """
     Parses a string containing a literal list of tuples and automatically unpacks the tuples.
 
@@ -229,6 +246,8 @@ def unpack_literal(literal_str):
     
     # Iterate through the parsed list, unpacking each tuple
     for item in parsed_literal:
+        if gold and isinstance(item,list):
+            item = tuple(item)
         unpacked_list.append(item)
 
     return unpacked_list
