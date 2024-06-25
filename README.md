@@ -19,7 +19,7 @@ We are actively updating this benchmark! Please reach out to the contact email b
 - **Multiple Algorithms:** Includes BFS, DFS, Dijkstra's, Floyd-Warshall, and Prim's MST.
 - **Advanced Prompting Techniques:** Explores advanced prompting techniques and algorithmic instructions.
 
-## Installation
+## Installation Process
 
 ### Prerequisites
 
