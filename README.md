@@ -1,5 +1,8 @@
 # LLM-CLRS Graph Reasoning Benchmark 
-Data generation is an adaption of the CLRS benchmark, which can be found here: https://github.com/google-deepmind/clrs
+
+Data used in the benchmark is translated from the CLRS benchmark, which can be found here: https://github.com/google-deepmind/clrs
+
+Model training adapted from the Huggingface Alignment Handbook: https://github.com/huggingface/alignment-handbook.git
 
 Seed used = 100898
 
@@ -45,14 +48,16 @@ Activate the newly created environment using:
 conda activate llm_gar
 ```
 
-## Usage
-
-### Adding to the Benchmark
-Follow the instructions in `data_generation`.
-
-### Running the Benchmark
+### Training baseline models
 
 An example of a script used to run the benchmark on the included algorithms is included in `run_scripts`.
+
+```bash
+bash run_scripts/bfs_CoT.sh
+```
+### Running inference with trained models 
+
+An example of a script used to run the benchmark on a selected algorithm is included in `run_scripts`.
 
 ```bash
 bash run_scripts/bfs_CoT.sh
@@ -60,7 +65,7 @@ bash run_scripts/bfs_CoT.sh
 
 ### Configuration
 
-You can customize the benchmark settings using the configuration file `config.yaml`.
+You can customize the benchmark settings using the configuration file `recipes/algorithmic_reasoning/sft/config_qlora.yaml`.
 
 ## Performance Metrics
 
@@ -68,11 +73,6 @@ The benchmark evaluates the following metrics:
 
 - **Exact Match Accuracy:** Measures the correctness of the final output.
 - **Intermediate Steps Accuracy:** Evaluates the accuracy of intermediate steps.
-
-## Results Interpretation
-
-- **Exact Match Accuracy:** Indicates the percentage of correct final outputs.
-- **Intermediate Steps Accuracy:** Provides insight into the reasoning process and where the model might be making errors.
 
 ## Contributing
 
@@ -83,6 +83,8 @@ We welcome contributions to improve this benchmark. Please follow these steps:
 3. Commit your changes (`git commit -am 'Add new feature'`).
 4. Push to the branch (`git push origin feature-branch`).
 5. Open a Pull Request.
+
+See `data_generation` for further details.
 
 ## License
 
