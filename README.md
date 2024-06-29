@@ -1,11 +1,5 @@
 # LLM-CLRS Graph Reasoning Benchmark 
 
-Data used in the benchmark is translated from the CLRS benchmark, which can be found here: https://github.com/google-deepmind/clrs
-
-Model training adapted from the Huggingface Alignment Handbook: https://github.com/huggingface/alignment-handbook.git
-
-Seed used = 100898
-
 ## Summary
 
 The LLM-CLRS Graph Reasoning Benchmark is designed to evaluate the performance of large language models (LLMs) on classical graph algorithms using intermediate steps. Despite advances in LLMs, they exhibit significant limitations in structured, multistep reasoning tasks, particularly those involving explicit graph structures. Our benchmark addresses this gap by evaluating state-of-the-art LLMs on five fundamental algorithms: BFS, DFS, Dijkstra's, Floyd-Warshall, and Prim's MST.
@@ -88,9 +82,23 @@ We welcome contributions to improve this benchmark. Please follow these steps:
 
 See `data_generation` for further details.
 
+## Reproducibility
+
+Seed used = 100898
+
+BFS Llama3 _r_ & _alpha_: 8
+
+Otherwise, baseline data generation and model training follow default settings for parameters.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgements
+
+Data used in the benchmark is translated from the CLRS benchmark, which can be found here: https://github.com/google-deepmind/clrs
+
+Model training adapted from the Huggingface Alignment Handbook: https://github.com/huggingface/alignment-handbook.git
 
 ## Contact Information
 
