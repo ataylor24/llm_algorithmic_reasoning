@@ -6,16 +6,26 @@ import json
 import dill
 import data_utils
 from datasets import Dataset, DatasetDict
-       
+
 def _iterate_sampler(sampler, batch_size):
-        while True:
-            yield sampler.next(batch_size)
-            
+    while True:
+        yield sampler.next(batch_size)
+
+def _preprocess_hint_matrix_scc(alg, matrix_h, hints_dict):
+
+    def _extract_phase_1_index(hints_dict):
+        return hints_dict["phase"]["data"].tolist().index([1.])
+    phase_1_idx = _extract_phase_1_index(hints_dict)
+    list_flat_h_1 = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()[:phase_1_idx]]
+    list_flast_h_2 = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()[phase_1_idx:]] 
+    return list_flat_h_1, list_flast_h_2
+
+
 def _preprocess_hint_matrix(alg, matrix_h):
     ''' For graph-based approaches (ex. BFS), the hint matrices are actually 2D lists.
         The row index position implicitly refers to the node in question, and the
         value at the index depends on the hint type. '''
-    if alg in ["bfs", "dfs"]:
+    if alg in ["bfs", "dfs", "strongly_connected_components"]:
         # unweighted graph algorithms
         list_flat_h = [unflat_h[0] for unflat_h in matrix_h.astype(int).tolist()]
         return list_flat_h
@@ -24,7 +34,7 @@ def _preprocess_hint_matrix(alg, matrix_h):
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
-        
+
 def _translate_unweighted_graph(adj_matrix):
     adj_matrix = adj_matrix.squeeze()
     rows, cols = adj_matrix.shape
@@ -111,6 +121,80 @@ def _translate_mst_prim_hints(hints_dict, source):
             hints.append(f"MST Edges: {mst_edges}")
     return hints, mst_edges
 
+
+
+def _scc_translate_h(edgelist_lookup, list_color_h, list_source_h, list_color_h_1, list_source_h_1, list_scc_id_h, hints_dict, past_step_window):
+    reach_stack = []
+    hints = []
+    visited = set()
+    current_component = []
+
+    def get_neighborhood(node, edgelist):
+        neighbors = set()
+        for edge in edgelist:
+            if edge[0] == node:
+                neighbors.add(edge[1])
+        return list(neighbors)
+    def extract_scc_list(scc_id):
+        scc_dict = {}
+
+        # Iterate through each node and its corresponding SCC identifier
+        for node, scc in enumerate(scc_id):
+            if scc not in scc_dict:
+                scc_dict[scc] = []
+            scc_dict[scc].append(node)
+
+        # Convert the dictionary values to a list of tuples
+        scc_list = [tuple(component) for component in scc_dict.values()]
+
+        return scc_list
+
+    reach_stack = []
+    hints = []
+    visited = set()
+    current_component = []
+    current_component = []
+    for i in range(len(list_color_h_1)):
+        c = list_color_h_1[i]
+
+        for j in range(len(c)):
+            node_color = c[j]
+
+            if 1 not in list_source_h_1[i]: 
+                continue
+            source_node = list_source_h_1[i].index(1)
+
+            if node_color == [0, 1, 0] and j not in visited:  # Node is visited for the first time
+                reach_stack.append(j)
+                visited.add(j)
+
+                # Update current component
+                if not current_component:
+                    current_component = [source_node]
+                if j not in current_component:
+                    current_component.append(j)
+
+                # Append stack update hint
+                stack_update = f"Stack: {reach_stack}, Pop Node: {reach_stack[-1]}. 1-hop Neighborhood of {reach_stack[-1]}: {get_neighborhood(reach_stack[-1], edgelist_lookup)}."
+                hints.append(stack_update)
+
+                grouping = extract_scc_list(list_scc_id_h[i])
+
+
+                # Append connected components hint
+                hints.append(f"Strongly Connected Components: {grouping}")
+
+            elif node_color == [0, 0, 1] and reach_stack:  # Node has been fully explored and stack is not empty
+                reach_stack.pop()
+    if past_step_window != -1:
+        #get last past_step_window# user/assistant pairing 
+        past_step_window *=2
+        if past_step_window > len(hints):
+            return hints, grouping
+        return hints[len(hints) - past_step_window:],grouping
+    return hints, grouping 
+    
+
 def _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h, list_source_h):
     reach_stack = []
     hints = []
@@ -139,11 +223,11 @@ def _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h,
         for j in range(len(c)):
             node_color = c[j]
             source_node = list_source_h[i].index(1.0)
-            
+
             if node_color == [0, 1, 0] and j not in visited:  # Node is visited for the first time
                 reach_stack.append(j)
                 visited.add(j)
-                
+
                 # Update current component
                 if not current_component:
                     current_component = [source_node]
@@ -152,13 +236,12 @@ def _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h,
                 # Append stack update hint
                 stack_update = f"Stack: {reach_stack}, Pop Node: {reach_stack[-1]}, 1-hop Neighborhood of {reach_stack[-1]}: {get_neighborhood(reach_stack[-1], edgelist_lookup)}."
                 hints.append(stack_update)
-                
+
                 # Append connected components hint
                 formatted_components = ', '.join(
                     f"({', '.join(map(str, sorted(set(component))))})"
                     for component in final_groupings + [current_component]
                 )
-                hints.append(f"Connected Components: [{formatted_components}]")
 
             elif node_color == [0, 0, 1] and reach_stack:  # Node has been fully explored and stack is not empty
                 reach_stack.pop()
@@ -193,6 +276,7 @@ def _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h,
         f"({', '.join(map(str, component))})"
         for component in final_groupings
     )
+
     return hints, final_groupings
 
 def get_neighborhood(node, edgelist):
@@ -225,19 +309,19 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
     reach_h_queue = []
     neighborhood_h = {}
     visited_ = set()
-    
+
     for level_h, (reach_h, pred_h) in enumerate(zip(list_reach_h, list_pred_h)):            
         level_h_queue = set()
         # termination condition
         if sum(reach_h) == 0 and sum(pred_h) == 0:
             continue
-     
+
         for node_idx, (reach_f, pred_node_idx) in enumerate(zip(reach_h, pred_h)):
-            
+
             if not pred_node_idx in dict_reach_h:
                 dict_reach_h[pred_node_idx] = set()
                 neighborhood_h[pred_node_idx] = set()
-            
+
             if reach_f == 1:
                 if node_idx != pred_node_idx: 
                     dict_reach_h[pred_node_idx].add((node_idx, pred_node_idx))
@@ -246,27 +330,27 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
                     level_h_queue.add(node_idx)
                     visited_.add(node_idx)
         reach_h_queue.append(sorted(list(level_h_queue)))
-    
+
     hints = []
     idx = 0
     bfs_queue = deque(reach_h_queue[0])
     list_node_idxs = [i for i in range(len(list_reach_h[0]))]
     bfs_dequeue = set()
-    
+
     reachable_nodes = set()
-    
+
     for reach_h_subqueue in reach_h_queue:
         current_hint = []
-        
+
         for reach_h in reach_h_subqueue:
             bfs_subqueue = set()
             current_hint.append(f"Queue: {list(bfs_queue)}")
             current_source = bfs_queue.popleft()
             current_hint.append(f"Dequeue: {current_source}\nUnvisited neighborhood of {current_source}: {list(neighborhood_h[reach_h])}")
-            
+
             if neg_edges:
                 bfs_dequeue.add(current_source)
-            
+
             if len(dict_reach_h[reach_h]) == 0:
                 # if idx == 0:
                 #     current_hint.append(f"Source {reach_h} has no univisited neighbors.\n Algorithm terminates.")
@@ -276,10 +360,10 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
                 #     # current_hint.append(f"{reach_h} has no univisited neighbors.{suffix}")
                 #     current_hint.append(f"\nQueue is empty.\n Algorithm terminates.")
                 continue
-            
+
             #order the hints by placing the lowest node idx first
             dict_reach_h[reach_h] = sorted(list(dict_reach_h[reach_h]))
-            
+
             for node_idx, pred_node_idx in dict_reach_h[reach_h]:
                 bfs_subqueue.add(node_idx)
                 # current_hint.append(f"{node_idx} is reachable from {pred_node_idx}.")
@@ -295,8 +379,8 @@ def _bfs_translate_reach_pred_h(neg_edges, edgelist_lookup, list_reach_h, list_p
                             # current_hint.append(f"{node_idx} is reachable from {pred_node_idx}, but has been reached already.")
                             reachable_nodes.add(node_idx)
                         # else:
-                            # current_hint.append(f"{node_idx} is not reachable from {pred_node_idx}.")
-                            
+                        # current_hint.append(f"{node_idx} is not reachable from {pred_node_idx}.")
+
                     # No action required if node_idx is in bfs_subqueue
             bfs_queue.extend(sorted(list(bfs_subqueue)))
             idx += 1
@@ -317,17 +401,17 @@ def _datapoints_list_to_dict(dp_list):
     return dp_dict
 
 def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data):
-    
+
     #Writing CLRS data
-    
+
     data_utils.write_clrs_format(os.path.join(clrs_data_dir, "training" + ".pkl"), clrs_training_data)
     data_utils.write_clrs_format(os.path.join(clrs_data_dir, "validation" + ".pkl"), clrs_validation_data)
     data_utils.write_clrs_format(os.path.join(clrs_data_dir, "testing" + ".pkl"), clrs_testing_data)
-    
+
     #Writing LMM data
     for output_format in output_formats:
         llm_data_dir = dict_llm_data_dir[output_format]
-        
+
         if output_format in data_utils.OUTPUT_FORMATS:            
             for reasoning_strategy in data_utils.REASONING_STRATEGIES:
                 dataset = DatasetDict({
@@ -335,12 +419,12 @@ def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_
                     "test": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_validation_data)),
                     "evaluation": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_testing_data))
                 })
-                
+
                 outfile = os.path.join(os.path.join(llm_data_dir, reasoning_strategy))
                 dataset.save_to_disk(outfile)
         else:
             raise NotImplementedError(f"Output format {output_format} has not been implemented.")
-    
+
 def translate_outputs(alg, outputs, final_d=None):
     outputs_dict = _datapoints_list_to_dict(outputs)
 
@@ -351,6 +435,8 @@ def translate_outputs(alg, outputs, final_d=None):
         return list_out
     if alg == "dfs":
         return f"Connected Components: {final_d}"
+    if alg == "strongly_connected_components":
+        return f"Strongly Connected Components: {final_d}" 
     elif alg in ["dka", "bfd"]:
         #potentially weighted graph algorithms
         raise NotImplementedError(f"[WILL BE REPLACED] No hint translation functionality has been implemented for {alg}")
@@ -362,7 +448,7 @@ def translate_outputs(alg, outputs, final_d=None):
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
 
-def translate_hints(alg, neg_edges, edgelist_lookup, hints, source=None):
+def translate_hints(alg, neg_edges, edgelist_lookup, hints,past_step_window=-1, source=None):
     hints_dict = _datapoints_list_to_dict(hints)
 
     if alg in ["bfs"]:
@@ -382,6 +468,11 @@ def translate_hints(alg, neg_edges, edgelist_lookup, hints, source=None):
         return _translate_dijkstra_hints(hints_dict, source)
     elif alg == "mst_prim": 
         return _translate_mst_prim_hints(hints_dict, source)
+    elif alg == "strongly_connected_components":
+        list_color_h_1, list_color_h_2 = _preprocess_hint_matrix_scc(alg, hints_dict["color"]["data"], hints_dict)
+        list_source_h_1, list_source_h_2 = _preprocess_hint_matrix_scc(alg, hints_dict["s"]["data"], hints_dict)
+        _, list_scc_id_h = _preprocess_hint_matrix_scc(alg, hints_dict["scc_id_h"]["data"], hints_dict)
+        return _scc_translate_h(edgelist_lookup, list_color_h_1, list_source_h_1, list_color_h_2, list_source_h_2, list_scc_id_h, hints_dict, past_step_window)
     else:
         raise NotImplementedError(f"No hint translation functionality has been implemented for {alg}")
 
@@ -430,6 +521,20 @@ def _translate_inputs(alg, inputs):
                         list_edge_with_weights.append(edge)
                         edge_set.add(edge)
         return algorithm, list_edge_with_weights, ""
+    elif alg == 'strongly_connected_components':
+        algorithm = alg
+        adj_matrix = np.squeeze(inputs_dict["adj"]["data"])
+        weights = np.squeeze(inputs_dict["A"]["data"])
+        edge_set = set()
+        list_edge_with_weights = []
+
+        for i in range(len(adj_matrix)):
+            for j in range(len(adj_matrix[i])):
+                if adj_matrix[i][j] == 1 and weights[i][j] != 0 and i!=j:
+                    edge = (i, j)
+                    list_edge_with_weights.append(edge)
+        return algorithm, list_edge_with_weights, ""
+
     else:
         raise NotImplementedError(f"No input translation functionality has been implemented for {alg}")
 
@@ -441,62 +546,65 @@ def sample_data(args):
     clrs_training_data = {}
     clrs_validation_data = {}
     clrs_testing_data = {}
-    
+
     trans_training_data = {}
     trans_validation_data = {}
     trans_testing_data = {}
-    
+
     graph_sizes = args.graph_sizes
-    
+
     for graph_size in graph_sizes:
         unique_graphs = set()
         clrs_data_dir, dict_llm_data_dir = data_utils.resolve_output_dirs(args.output_dir, args.algorithm, args.output_formats, graph_size)
-        training_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][0] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[0]
-        evaluation_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][1] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[1]
-        
-        data_smp, spec = smp.build_sampler(args.algorithm, num_samples=-1, length=graph_size, seed=args.seed)
-    
+        # training_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][0] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[0]
+        # evaluation_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][1] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[1]
+        training_instances = args.train_test_split[0]
+        evaluation_instances = args.train_test_split[1]
+        print(f"Training instances: {training_instances}, Evaluation instances: {evaluation_instances}")
+
+        data_smp, spec = smp.build_sampler(args.algorithm, num_samples=args.num_samples, length=graph_size, seed=args.seed)
         data_smp_iter = _iterate_sampler(data_smp, batch_size=1)
-        
+
         valid_train_idx = 0
         valid_eval_idx = 0
-        
+
         while valid_train_idx < training_instances:
             train_sample = next(data_smp_iter)
-            
+
             inputs = _translate_inputs(args.algorithm, train_sample.features.inputs)
-            
+
             edgelist_hash = hash_edgelist(inputs[1])
             if edgelist_hash in unique_graphs:
                 continue
-            
-            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim", "dfs"]:
+            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim", "dfs"]: #TODO add scc
                 hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints, source=inputs[2])
-
+                outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
+            if args.algorithm in ["strongly_connected_components"]:
+                hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints, past_step_window=args.past_step_window, source=inputs[2])
                 outputs = translate_outputs(args.algorithm, train_sample.outputs, final_d)
             else:
                 hints = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), train_sample.features.hints, source=inputs[2])
                 outputs = translate_outputs(args.algorithm, train_sample.outputs)
-            
+
             clrs_training_data[valid_train_idx] = train_sample
-            
+
             trans_training_data[valid_train_idx] = {
                 "inputs": inputs,
                 "hints": hints,
                 "outputs": outputs
             }
-            
+
             unique_graphs.add(edgelist_hash)
             valid_train_idx += 1
         while valid_eval_idx < evaluation_instances:
             test_sample = next(data_smp_iter)
             inputs = _translate_inputs(args.algorithm, test_sample.features.inputs)
-            
+
             edgelist_hash = hash_edgelist(inputs[1])
             if edgelist_hash in unique_graphs:
                 continue
 
-            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim", "dfs"]:
+            if args.algorithm in ["floyd_warshall", "dijkstra", "mst_prim", "dfs", "strongly_connected_components"]:
                 hints, final_d = translate_hints(args.algorithm, args.neg_edges, set(inputs[1]), test_sample.features.hints, source=inputs[2])
 
                 outputs = translate_outputs(args.algorithm, test_sample.outputs, final_d)
@@ -522,16 +630,16 @@ def sample_data(args):
                     "hints": hints,
                     "outputs": outputs
                 }
-            
+
             unique_graphs.add(edgelist_hash)
             valid_eval_idx += 1
         print(f"Sampling complete for graph size: {graph_size}")
-        
+
         _write_data(args.output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data)
-    
+
 def main():
     args = data_utils.parse_args()
     sample_data(args)
-    
+
 if __name__ == "__main__":
     main()

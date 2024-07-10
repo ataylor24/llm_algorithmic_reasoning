@@ -27,6 +27,13 @@ REASONING_STRATEGIES = {
 }
 
 FORMATTED_ALGORITHMS = {
+    "strongly_connected_components": {
+        "name": "Kosaraju's Strongly Connected Components",
+        "goal": "reachability",
+        "instruction": "List all known strongly connected components.",
+        "output_format":"; Output Format: Strongly Connected Components: [(node1, node2), (node3, node5), ...]",
+        "eval_output_format": "Strongly Connected Components:"
+        },
     "bfs": {
         "name": "Breadth-first Search",
         "goal": "reachability",
@@ -156,6 +163,8 @@ def write_chat_format(reasoning_strategy, data_sect, data):
         #     print(llama_data[-1]["messages"])
         #     print("-------------")
     write_json(f"/local2/ataylor2/algorithmic_reasoning/data_samples/{data_sect}_sample.json", llama_data)
+
+
         
     return llama_data
 
@@ -228,8 +237,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Jointly constructs CLRS data and sequence-to-sequence data.")
 
     # Add arguments
-    parser.add_argument("algorithm", type=str, choices=['bfs', 'dfs', 'dijkstra', 'floyd_warshall', 'mst_prim'], 
-                        help="Algorithm must be one of: 'bfs', 'dfs', 'dijkstra', 'floyd_warshall', or 'mst_prim.")
+    parser.add_argument("algorithm", type=str, choices=['bfs', 'dfs', 'dijkstra', 'floyd_warshall', 'mst_prim', 'strongly_connected_components'], 
+                        help="Algorithm must be one of: 'bfs', 'dfs', 'dijkstra', 'floyd_warshall', 'strongly_connected_components, or 'mst_prim.")
     parser.add_argument("-training_style", "--training_style", type=str, default="QA",choices=['QA', 'AoT'], #CoT, ToT, GoT
                         help="Algorithm must be one of: 'bfs', 'dfs','dka', or 'bfd'.")
     parser.add_argument("-graph_sizes", "--graph_sizes", type=list, default=[5,6,7,8,9,10,11,12,13,14,15,20,50], help="Number of nodes present in the graphs generated. Default behavior sets num_samples to the number of training datapoints.")
@@ -239,7 +248,9 @@ def parse_args():
     parser.add_argument("-output_dir", "--output_dir", type=str, default="/local/ataylor2/algorithmic_reasoning", help="Output directory. Will create folders named after the algorithm for which data is generated.")
     parser.add_argument("-train_test_split", "--train_test_split", type=list, default=[1000,500], help="Training/Testing split ratios. The Test set will be equally split into Validation and Test.")
     parser.add_argument("-output_formats", "--output_formats", type=list, default=["chat"], choices=OUTPUT_FORMATS, help="Output format for dataset")
+    parser.add_argument("-past_step_window", "--past_step_window", type=int, default=-1, help="Number of past steps to include for each problem statement .")
     # Parse the arguments
     args = parser.parse_args()
+
 
     return args
