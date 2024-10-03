@@ -127,12 +127,6 @@ def _dfs_translate_list_h(neg_edges, edgelist_lookup, list_pred_h, list_color_h,
                 neighbors.add(edge[0])
         return list(neighbors)
 
-    def find_component(components, node):
-        for component in components:
-            if node in component:
-                return component
-        return None
-
     for i in range(len(list_color_h)):
         c = list_color_h[i]
 
@@ -316,7 +310,7 @@ def _datapoints_list_to_dict(dp_list):
         dp_dict[dp.name] = _datapoint_to_dict(dp)
     return dp_dict
 
-def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data):
+def _write_data(args, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data):
     
     #Writing CLRS data
     
@@ -325,19 +319,37 @@ def _write_data(output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_
     data_utils.write_clrs_format(os.path.join(clrs_data_dir, "testing" + ".pkl"), clrs_testing_data)
     
     #Writing LMM data
-    for output_format in output_formats:
+    for output_format in args.output_formats:
         llm_data_dir = dict_llm_data_dir[output_format]
-        
+        print(f"Output Format: {output_format}")
         if output_format in data_utils.OUTPUT_FORMATS:            
             for reasoning_strategy in data_utils.REASONING_STRATEGIES:
-                dataset = DatasetDict({
-                    "train": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "training", trans_training_data)),
-                    "test": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_validation_data)),
-                    "evaluation": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_testing_data))
-                })
+                if reasoning_strategy != "Int_Steps_Wndw":
+                    dataset = DatasetDict({
+                        "train": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "training", trans_training_data)),
+                        "test": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_validation_data)),
+                        "evaluation": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_testing_data))
+                    })
+                    
+                    outfile = os.path.join(llm_data_dir, reasoning_strategy)
+                    dataset.save_to_disk(outfile)
+                    
+                    for split, data_split in [("train", trans_training_data), ("test", trans_validation_data), ("evaluation", trans_testing_data)]:
+                        # dataset_list = dataset.to_pandas().to_dict(orient='records')
+                        print(os.path.join(outfile, f"{split}.json"))
+                        data_utils.write_json(os.path.join(outfile, f"{split}.json"), data_utils.write_chat_format(reasoning_strategy, split, data_split))
+                        
+                else:
+                    for context_window in args.window_sizes:
+                        dataset = DatasetDict({
+                            "train": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "training", trans_training_data, context_window=context_window)),
+                            "test": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_validation_data, context_window=context_window)),
+                            "evaluation": Dataset.from_list(data_utils.write_chat_format(reasoning_strategy, "evaluation", trans_testing_data, context_window=context_window))
+                        })
+                        
+                        outfile = os.path.join(llm_data_dir, reasoning_strategy) + f"_{context_window}"
+                        dataset.save_to_disk(outfile)
                 
-                outfile = os.path.join(os.path.join(llm_data_dir, reasoning_strategy))
-                dataset.save_to_disk(outfile)
         else:
             raise NotImplementedError(f"Output format {output_format} has not been implemented.")
     
@@ -446,11 +458,11 @@ def sample_data(args):
     trans_validation_data = {}
     trans_testing_data = {}
     
-    graph_sizes = args.graph_sizes
+    graph_sizes = [int(graph_size) for graph_size in args.graph_sizes]
     
     for graph_size in graph_sizes:
         unique_graphs = set()
-        clrs_data_dir, dict_llm_data_dir = data_utils.resolve_output_dirs(args.output_dir, args.algorithm, args.output_formats, graph_size)
+        clrs_data_dir, dict_llm_data_dir = data_utils.resolve_output_dirs(args.output_dir, args.algorithm, args.output_formats, int(graph_size))
         training_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][0] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[0]
         evaluation_instances = data_utils.TRAIN_TEST_SPLIT[graph_size][1] if graph_size in data_utils.TRAIN_TEST_SPLIT else args.train_test_split[1]
         
@@ -527,11 +539,19 @@ def sample_data(args):
             valid_eval_idx += 1
         print(f"Sampling complete for graph size: {graph_size}")
         
-        _write_data(args.output_formats, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data)
+        _write_data(args, clrs_data_dir, dict_llm_data_dir, clrs_training_data, clrs_validation_data, clrs_testing_data, trans_training_data, trans_validation_data, trans_testing_data)
     
 def main():
     args = data_utils.parse_args()
-    sample_data(args)
+    
+    if args.algorithm == "all":
+        print("Generating data for all algorithms...")
+        for algorithm in data_utils.FORMATTED_ALGORITHMS:
+            args.algorithm = algorithm
+            print(f"Generating data for {algorithm}...") 
+            sample_data(args)
+    else:
+        sample_data(args)
     
 if __name__ == "__main__":
     main()

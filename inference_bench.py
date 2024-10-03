@@ -15,6 +15,13 @@ from datasets import DatasetDict, concatenate_datasets, load_dataset, load_from_
 import argparse  # Added for argument parsing
 import math
 
+def get_lora_path(lora_base_path):
+    lora_path = None
+    for item in os.listdir(lora_base_path):
+        if "checkpoint-" in item:
+            lora_path = os.path.join(lora_base_path, item)
+    return lora_path
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run inference on a given task.")
     parser.add_argument('--target_task', type=str, default='bfs', choices=['bfs', 'dfs', 'dijkstra', 'floyd_warshall', 'mst_prim'], help='Target task to perform')
@@ -23,9 +30,9 @@ def parse_args():
     parser.add_argument('--split_to_use', type=str, default='evaluate', help='Data split to use (train/test)')
     parser.add_argument('--mode', type=str, default='inference', help='Mode of operation (seq_gen/inference)')
     parser.add_argument('--inference_engine', type=str, default='hf', choices=['hf', 'openai', 'vllm'], help='Inference engine to use (hf/openai/vllm)')
-    parser.add_argument('--llm_name', type=str, default='meta-llama/Meta-Llama-3-8B', choices=['meta-llama/Meta-Llama-3-8B', 'gpt-4o'], help='Name of the language model to use')
+    parser.add_argument('--llm_name', type=str, default='meta-llama/Meta-Llama-3-8B', choices=['meta-llama/Meta-Llama-3-8B-Instruct', 'meta-llama/Meta-Llama-3-8B', "mistralai/Mistral-7B-Instruct-v0.3", "mistralai/Mistral-7B-v0.3", 'gpt-4o'], help='Name of the language model to use')
     parser.add_argument('--from_saved', action='store_true', help='Load from saved model or not')
-    parser.add_argument('--chat_suffix', type=str, default='', help='allow inference on reruns')
+    parser.add_argument('--chat_type', type=str, default='', help='allow inference on reruns')
     parser.add_argument('--verbose', type=bool, default=False, help='Primarily for debugging purposes.')
     return parser.parse_args()
 
@@ -40,46 +47,31 @@ mode = args.mode
 inference_engine = args.inference_engine
 llm_name = args.llm_name
 from_saved = args.from_saved
-chat_suffix = args.chat_suffix if args.chat_suffix != "None" else ''
+chat_type = args.chat_type
 verbose = args.verbose
-
-# target_task = 'bfs' 
-# reasoning_strategy = "Int_Steps"
-# graph_size = "5"
-
-
-# split_to_use = 'test'
-# split_to_use = 'train'
-
-# mode = 'seq_gen'
-# mode = 'inference'
-
-# inference_engine = 'hf'
-
-# llm_name = 'gpt-4o'
-
-# LLaMA3 family
-# llm_name = 'meta-llama/Meta-Llama-3-8B-Instruct'
-# llm_name = 'meta-llama/Meta-Llama-3-8B'
-# llm_name = 'meta-llama/Meta-Llama-3-70B-Instruct'
-
-
-# Mistral family
-# llm_name = 'mistralai/Mistral-7B-Instruct-v0.2'
-# llm_name = 'mistralai/Mixtral-8x7B-Instruct-v0.1'
-# llm_name = 'mistralai/Mixtral-8x22B-Instruct-v0.1'
 
 # If loading from a saved model
 llm_path = llm_name
-lora_path = None
-chat_type = "chat_gpt" if llm_name == "gpt-4o" else "chat" + chat_suffix 
-lora_base_path = f'/local2/ataylor2/algorithmic_reasoning/{target_task}/graph_size_{graph_size}/llm_data/{chat_type}/{reasoning_strategy}'
-for item in os.listdir(lora_base_path):
-    if "checkpoint-" in item:
-        lora_path = os.path.join(lora_base_path, item)
+print("reasoning_strategy", reasoning_strategy)
+
+if reasoning_strategy in ["IO_w_IS", "IO_w_IS_no_tf"]:
+    base_reasoning_strategy = "IO"
+elif reasoning_strategy in ["Int_Steps_w_IO"]:
+    base_reasoning_strategy = "Int_Steps"
+elif reasoning_strategy in ["IO_no_tf", "IO_nc_w_IS"]:
+    base_reasoning_strategy = "IO_no_chat"
+else:
+    base_reasoning_strategy = reasoning_strategy
+
+# Set the lora_base_path based on the base chat type
+lora_base_path = f'/local/ataylor2/algorithmic_reasoning/{target_task}/graph_size_{graph_size}/llm_data/{chat_type}/{base_reasoning_strategy}'
+
+lora_path = get_lora_path(lora_base_path)
 
 if lora_path == None and not "gpt" in llm_name:
-    raise FileNotFoundError(f"There is no model checkpoint at: {lora_base_path}")
+    lora_path = get_lora_path(lora_base_path.replace("local", "local2"))
+    if lora_path == None and not "gpt" in llm_name:
+        raise FileNotFoundError(f"There is no model checkpoint at: {lora_base_path}")
 # lora_path = '/home/ubuntu/derek-240318/clinical-event-pred/alignment-handbook/data/llama3-8b-instruct-dpo-qlora-codes-diagnoses-full/checkpoint-4800'
 
 save_path_parsed = 'data/mimic4/parsed'
@@ -98,11 +90,11 @@ elif inference_engine == 'hf':
         batch_size = 1
         batch_size_big = 1
     elif '7b' in llm_name.lower():
-        batch_size = 4
-        batch_size_big = 40
+        batch_size = 1
+        batch_size_big = 1
     else:
-        batch_size = 8
-        batch_size_big = 80
+        batch_size = 1
+        batch_size_big = 1
     batch_size = 1
     batch_size_big = 1
 elif inference_engine == 'vllm':
@@ -119,7 +111,7 @@ if lora_path:
 
 # chat_type = "chat_gpt" if llm_name == 'gpt-4o' else "chat" + chat_suffix 
 
-evaldata_save_path = f'/local2/ataylor2/algorithmic_reasoning/{target_task}/graph_size_{graph_size}/llm_data/{chat_type}/{reasoning_strategy}/evaluation'
+evaldata_save_path = f'/local/ataylor2/algorithmic_reasoning/{target_task}/graph_size_{graph_size}/llm_data/{chat_type}/{reasoning_strategy}/evaluation'
 print("evaldata_save_path", evaldata_save_path)
 batch_proc = False
 char_per_token_est = 2 # -1, 4, 3, 2
@@ -217,30 +209,49 @@ left_char_count = max_token_length * char_per_token_est - prompt_basic_length_ch
 
 def model_specific_prompt(datapoint):
     if 'gpt' in llm_name.lower():
-        return datapoint
-    if 'llama' in llm_name.lower() or 'alpaca' in llm_name.lower():
+        return datapoint[0]
+    if 'llama' in llm_name.lower() or 'alpaca' in llm_name.lower() or 'mistral' in llm_name.lower():
         # not having <s> at the beginning, since it will be added by tokenizer automatically
         return tokenizer.apply_chat_template(datapoint, tokenize=False, add_generation_prompt=False)
     
 def generate_partial_examples(data):
-    if 'gpt' in llm_name.lower():
-        examples = []
-        ground_truths = []
-   
+    examples = []
+    ground_truths = []
+    intermediate_prompt = None
+    
+    if 'gpt' in llm_name.lower() and reasoning_strategy != "Int_Steps":
         for i in range(len(data)):
             if i == 0:
                 partial_example = data[i]["content"]
                 
                 examples.append(partial_example)
             elif i % 2 == 0:
-                partial_example = "".join([dp["content"] for dp in data[:i + 1]])
+                partial_example = "".join([dp["content"] for dp in data[:i + 1]]) + "\n"
                 
                 examples.append(partial_example)
             else:
                 ground_truths.append(data[i]["content"])
+    elif 'gpt' in llm_name.lower() and reasoning_strategy == "Int_Steps":
+        for i in range(len(data)):
+            if i == 0:
+                partial_example = [data[0]["content"]]
+                examples.append(partial_example)
+            elif i % 2 == 0:
+                partial_example = "".join([dp["content"] for dp in data[:i + 1]])
+                examples.append(partial_example)
+            else:
+                ground_truths.append(data[i]["content"])
+    elif "no_tf" in reasoning_strategy:
+        for i in range(len(data)):
+            if i == 0:
+                partial_example = [data[0]]
+                partial_example.append({'role': 'assistant', 'content': 'assistant:'})
+                examples = partial_example
+            elif i % 2 == 0 and intermediate_prompt == None:
+                intermediate_prompt= data[i]
+            else:
+                ground_truths.append(data[i])
     else:
-        examples = []
-        ground_truths = []
         for i in range(len(data)):
             if i == 0:
                 partial_example = [data[0]]
@@ -253,7 +264,7 @@ def generate_partial_examples(data):
             else:
                 ground_truths.append(data[i])
    
-    return examples, ground_truths
+    return examples, ground_truths, intermediate_prompt
 
 def inference(dps, verbose=False):
     responses = []
@@ -271,8 +282,7 @@ def inference(dps, verbose=False):
             success_gen_flag = False
             
             for messages in dp["messages"]:
-                partial_messages, gts = generate_partial_examples(messages)
-      
+                partial_messages, gts, _ = generate_partial_examples(messages)
                 for message, gt in zip(partial_messages,gts):
             
                     while success_gen_flag is False and try_count < 3:
@@ -282,6 +292,8 @@ def inference(dps, verbose=False):
                             message_formatted = model_specific_prompt(message)
                             # if 'gpt-4' in llm_name:
                             #     time.sleep(2)
+                          
+                            
                             messages_this_call = [
                                                     {"role": "user", "content": message_formatted},
                                             
@@ -319,18 +331,18 @@ def inference(dps, verbose=False):
                             if 'Input length of input_ids is' in e:
                                 success_gen_flag = False
                             pass
-                outputs.append({
-                    "message": message,
-                    "ground_truth": gt,
-                    "pred": output,
-                })
+                    outputs.append({
+                        "traj_id": dp["traj_id"][0],
+                        "message": message,
+                        "ground_truth": gt,
+                        "pred": output,
+                    })
                
     elif inference_engine == 'hf':
-       
-        chats = [dp['messages'] for dp in dps]
         
         outputs = []
         if batch_proc:
+            chats = [dp['messages'] for dp in dps] 
             inputs = tokenizer(chats, return_tensors="pt", padding=True).to(model.device)
             
             output_sequences = model.generate(
@@ -342,36 +354,88 @@ def inference(dps, verbose=False):
                 max_length=default_max_length_output,
             )
             outputs = tokenizer.batch_decode(output_sequences, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+        elif "no_tf" in reasoning_strategy:
+            for dp in dps:
+                for messages in dp['messages']:
+                # chats = [dp['messages'] for dp in dps] 
+                    # if len(chats[0]) == 0:
+                    #     return outputs
+                    problem_statment, gts, intermediate_prompt = generate_partial_examples(messages)
+                    for i, gt in enumerate(gts):
+                        if i == 0:
+                            message = problem_statment
+                        else:
+                            message = copy.copy(message)
+                            message.extend([intermediate_prompt, {'role': 'assistant', 'content': 'assistant:'}])
+                        try:
+                            outputs_batch = pipeline(
+                                model_specific_prompt(message),
+                                do_sample=True,
+                                num_return_sequences=1,
+                                # batch_size=batch_size,
+                                eos_token_id=tokenizer.eos_token_id,
+                                max_new_tokens=default_max_length_output,
+                            )
+                            # for outputs_single in outputs_batch:
+                            #     outputs.append(outputs_single['generated_text'])
+                            
+                        except Exception as e:
+                            print(f"Failed to process {[i for i, dp in enumerate(dps)]}: {e}")
+                            
+                            message[-1]["content"] = 'assistant: []'
+                            
+                            outputs.append({
+                            "message": message,
+                            "ground_truth": gt,
+                            "pred": []
+                            })
+                            
+                            continue
+                        
+                        message[-1]["content"] = f'assistant:{outputs_batch[0]["generated_text"]}'
+                    
+                        outputs.append({
+                            "traj_id": dp["traj_id"][0],
+                            "message": message,
+                            "ground_truth": gt,
+                            "pred": outputs_batch[0]
+                        })
+                        
         else:
-            if len(chats[0]) == 0:
-                return outputs
-            messages, gts = generate_partial_examples(chats[0][0])
-
-            for message, gt in zip(messages, gts):
-                try:
-                    outputs_batch = pipeline(
-                        model_specific_prompt(message),
-                        do_sample=True,
-                        num_return_sequences=1,
-                        # batch_size=batch_size,
-                        eos_token_id=tokenizer.eos_token_id,
-                        max_new_tokens=default_max_length_output,
-                    )
-                    for outputs_single in outputs_batch:
-                        outputs.append(outputs_single['generated_text'])
-                except Exception as e:
-                    print(f"Failed to process {[i for i, dp in enumerate(dps)]}: {e}")
-                    outputs.append({
-                    "message": message,
-                    "ground_truth": gt,
-                    "pred": []
-                })
-                    continue
-                outputs.append({
-                    "message": message,
-                    "ground_truth": gt,
-                    "pred": outputs_batch[0]
-                })
+            for dp in dps:
+                for messages in dp['messages']:
+                # chats = [dp['messages'] for dp in dps] 
+                    # if len(chats[0]) == 0:
+                    #     return outputs
+                    messages, gts, _ = generate_partial_examples(messages)#chats[0][0])
+                    for message, gt in zip(messages, gts):
+                        try:
+                            outputs_batch = pipeline(
+                                model_specific_prompt(message),
+                                do_sample=True,
+                                num_return_sequences=1,
+                                # batch_size=batch_size,
+                                eos_token_id=tokenizer.eos_token_id,
+                                max_new_tokens=default_max_length_output,
+                            )
+                            # for outputs_single in outputs_batch:
+                            #     outputs.append(outputs_single['generated_text'])
+                            
+                        except Exception as e:
+                            print(f"Failed to process {[i for i, dp in enumerate(dps)]}: {e}")
+                            outputs.append({
+                            "message": message,
+                            "ground_truth": gt,
+                            "pred": []
+                        })
+                            continue
+                        
+                        outputs.append({
+                            "traj_id": dp["traj_id"][0],
+                            "message": message,
+                            "ground_truth": gt,
+                            "pred": outputs_batch[0]
+                        })
                 
     # if not dps_is_list:
     #     if 'gpt' in llm_name:
@@ -497,6 +561,7 @@ if mode == 'inference':
     for batch_i in tqdm(range(len(results) // batch_size_big + 1), desc=f"{target_task}, {llm_name}, inference"):
         input_dps = results[batch_i * batch_size_big: (batch_i + 1) * batch_size_big]
         outputs = inference(input_dps, verbose=global_verbose_flag)
+       
         # for in_batch_i, result in enumerate(input_dps):
         #     result_new = {
         #         # 'hadm_id': result['hadm_id'],
@@ -515,6 +580,6 @@ if mode == 'inference':
                     else:
                         print(output["pred"])
         
-    print("Dumping results:", f"/local2/ataylor2/algorithmic_reasoning/{target_task}/graph_size_{graph_size}/llm_data/{chat_type}/{reasoning_strategy}/{save_name}_inference.json")    
-    with open(f"/local2/ataylor2/algorithmic_reasoning/{target_task}/graph_size_{graph_size}/llm_data/{chat_type}/{reasoning_strategy}/{save_name}_inference.json", 'w', encoding='utf-8') as f:
+    print("Dumping results:", f"/local/ataylor2/algorithmic_reasoning/{target_task}/graph_size_{graph_size}/llm_data/{chat_type}/{reasoning_strategy}/{save_name}_inference.json")    
+    with open(f"/local/ataylor2/algorithmic_reasoning/{target_task}/graph_size_{graph_size}/llm_data/{chat_type}/{reasoning_strategy}/{save_name}_inference.json", 'w', encoding='utf-8') as f:
         json.dump(results_2, f, indent=4)
